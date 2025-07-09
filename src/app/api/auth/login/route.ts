@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyPassword, createToken, setAuthCookie } from '@/lib/auth';
+import { createToken, setAuthCookie } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify password
-    const isValidPassword = await verifyPassword(password, user.password);
+    // Direct password comparison (no encoding/decoding)
+    const isValidPassword = password === user.password;
 
     if (!isValidPassword) {
       return NextResponse.json(
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create JWT token
+    // Create JWT token with user role
     const token = await createToken({
       userId: user.id,
       email: user.email,
@@ -47,11 +47,14 @@ export async function POST(request: Request) {
     // Set auth cookie
     await setAuthCookie(token);
 
-    // Return user data (without password)
-    const { password: _, ...userWithoutPassword } = user;
+    // Return user data (without password) including role
+    const { password: passwordField, ...userWithoutPassword } = user;
 
     return NextResponse.json({
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        role: user.role, // Explicitly include role in response
+      },
       message: 'Login successful',
     });
   } catch (error) {
