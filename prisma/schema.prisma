@@ -1,0 +1,471 @@
+// Driver Health Monitoring System - Prisma Schema
+// This schema defines the database models for the driver health monitoring system
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Existing tables (matching your current database structure)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(ADMIN)
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Driver {
+  id          String   @id @default(cuid())
+  driverId    String   @unique // DRV-001, DRV-002, etc.
+  name        String
+  email       String   @unique
+  phone       String
+  age         Int
+  gender      Gender
+  address     String?
+  profilePhoto String? @db.LongText
+  dateOfBirth DateTime?
+  weight      Float?   // in kg
+  height      Float?   // in cm
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations to existing tables
+  healthReports    HealthReport[]
+  attendanceRecords AttendanceRecord[]
+  alcoholDetections AlcoholDetection[]
+  objectDetections  ObjectDetection[]
+  
+  // Relations to new detection tables
+  alcoholDetectionResults AlcoholDetectionResult[]
+  smokingDetectionResults SmokingDetectionResult[]
+  objectDetectionResults  ObjectDetectionResult[]
+  driverIdentifications   DriverIdentification[]
+
+  @@map("drivers")
+}
+
+model HealthReport {
+  id               String   @id @default(cuid())
+  driverId         String
+  reportDate       DateTime @default(now())
+  
+  // Health metrics and vitals (all nullable)
+  heart_age                    String?
+  ascvd_risk                   String?
+  low_hemoglobin_risk          String?
+  high_total_cholesterol_risk  String?
+  high_fasting_glucose_risk    String?
+  heart_rate                   String?
+  breathing_rate               String?
+  prq                          String?
+  oxygen_saturation            String?
+  blood_pressure               String?
+  stress_level                 String?
+  recovery_ability             String?
+  stress_response              String?
+  respiration                  String?
+  hrv_sdnn                     String?
+  hemoglobin                   String?
+  hba1c                        String?
+  
+  // Confidence levels for measurements
+  heart_rate_conf_level        String?
+  breathing_rate_conf_level    String?
+  prq_conf_level               String?
+  hrv_sdnn_conf_level          String?
+  
+  // License and risk assessments
+  license_key                  String?
+  hypertension_risk            String?
+  diabetic_risk                String?
+  
+  // Legacy fields for backward compatibility
+  bloodPressureHigh Int?    // Systolic
+  bloodPressureLow  Int?    // Diastolic
+  heartRate        Int?     // BPM
+  stressLevel      StressLevel?
+  riskLevel        RiskLevel @default(NORMAL)
+  notes            String?
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("health_reports")
+}
+
+model AttendanceRecord {
+  id           String    @id @default(cuid())
+  driverId     String
+  date         DateTime
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  workingHours Float?    // in hours
+  status       AttendanceStatus
+  location     String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, date])
+  @@map("attendance_records")
+}
+
+model AlcoholDetection {
+  id           String   @id @default(cuid())
+  driverId     String
+  detectedAt   DateTime @default(now())
+  confidence   Float    // 0.0 to 1.0
+  imageUrl     String?
+  location     String?
+  severity     DetectionSeverity @default(MEDIUM)
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("alcohol_detections")
+}
+
+model ObjectDetection {
+  id           String   @id @default(cuid())
+  driverId     String
+  detectedAt   DateTime @default(now())
+  objectType   String   // phone, food, drink, etc.
+  confidence   Float    // 0.0 to 1.0
+  imageUrl     String?
+  location     String?
+  severity     DetectionSeverity @default(MEDIUM)
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("object_detections")
+}
+
+model SystemAlert {
+  id          String      @id @default(cuid())
+  title       String
+  message     String
+  type        AlertType
+  severity    AlertSeverity
+  isRead      Boolean     @default(false)
+  targetRole  UserRole?   // null means for all users
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("system_alerts")
+}
+
+// NEW TABLES FOR THE 3 DETECTION MODELS
+
+// Enhanced Alcohol Detection Results (from unified detector)
+model AlcoholDetectionResult {
+  id                    String   @id @default(cuid())
+  driverId             String
+  sessionId            String?   // WebSocket session ID
+  imageId              String?
+  detectedAt           DateTime @default(now())
+  
+  // Detection results
+  detected             Boolean  @default(false)
+  classification       String?  @db.Text // SOBER, DRUNK, UNCERTAIN
+  confidence           Float    @default(0) // YOLO confidence
+  physiologicalScore   Float    @default(0) // Physiological analysis score
+  faceRegions          Int      @default(0) // Number of face regions detected
+  yoloResult           String?  // Raw YOLO result
+  
+  // Risk assessment
+  riskLevel            String   @default("UNKNOWN") // LOW, MODERATE, HIGH
+  ensembleScore        Float    @default(0) // Combined ML score
+  instantScore         Float    @default(0)
+  shortTermScore       Float    @default(0)
+  longTermScore        Float    @default(0)
+  
+  // Processing metadata
+  processingTime       Float    @default(0) // Processing time in seconds
+  modelVersion         String?
+  imageMetadata        Json?    // Image dimensions, format, etc.
+  features             Json?    // Extracted features
+  
+  // Additional data
+  location             String?
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("alcohol_detection_results")
+}
+
+// Smoking Detection Results (from unified detector)
+model SmokingDetectionResult {
+  id                String   @id @default(cuid())
+  driverId         String
+  sessionId        String?   // WebSocket session ID
+  imageId          String?
+  detectedAt       DateTime @default(now())
+  
+  // Detection results
+  detected         Boolean  @default(false)
+  numDetections    Int      @default(0) // Number of cigarette detections
+  confidence       Float    @default(0) // Highest confidence score
+  detections       Json?    // Array of all detections with bounding boxes
+  
+  // Temporal analysis
+  smoothedPrediction String? // Smoothed prediction result
+  predictionHistory Json?    // Recent prediction history
+  
+  // Processing metadata
+  processingTime   Float    @default(0) // Processing time in seconds
+  modelVersion     String?
+  imageMetadata    Json?    // Image dimensions, format, etc.
+  confThreshold    Float    @default(0.6) // Confidence threshold used
+  
+  // Additional data
+  location         String?
+  notes            String?
+  severity         DetectionSeverity @default(MEDIUM)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("smoking_detection_results")
+}
+
+// Object/Driver Behavior Detection Results (from unified detector)
+model ObjectDetectionResult {
+  id                String   @id @default(cuid())
+  driverId         String
+  sessionId        String?   // WebSocket session ID
+  imageId          String?
+  detectedAt       DateTime @default(now())
+  
+  // Overall status
+  safeDriving      Boolean  @default(true)
+  
+  // Behavior detections
+  drowsy           Boolean  @default(false)
+  sleeping         Boolean  @default(false)
+  mobileUse        Boolean  @default(false)
+  eating           Boolean  @default(false)
+  drinking         Boolean  @default(false)
+  distracted       Boolean  @default(false)
+  
+  // Metrics and analysis
+  eyeAspectRatio   Float    @default(0)
+  drowsyConfidence Float    @default(0)
+  faceDetected     Boolean  @default(false)
+  handPositions    Json?    // Hand tracking data
+  headPose         Json?    // Head pose estimation
+  
+  // YOLO detections
+  yoloDetections   Json?    // Raw YOLO detection results
+  objectsDetected  Json?    // List of detected objects
+  
+  // Risk assessment
+  riskScore        Float    @default(0) // Combined risk score
+  riskLevel        String   @default("LOW") // LOW, MODERATE, HIGH, CRITICAL
+  
+  // Processing metadata
+  processingTime   Float    @default(0) // Processing time in seconds
+  modelVersion     String?
+  imageMetadata    Json?    // Image dimensions, format, etc.
+  
+  // Additional data
+  location         String?
+  notes            String?
+  severity         DetectionSeverity @default(MEDIUM)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("object_detection_results")
+}
+
+// Driver Identification Results (for face recognition)
+model DriverIdentification {
+  id                String   @id @default(cuid())
+  driverId         String?  // Identified driver ID (null if unidentified)
+  sessionId        String?  // WebSocket session ID
+  imageId          String?
+  identifiedAt     DateTime @default(now())
+  
+  // Identification results
+  identified       Boolean  @default(false)
+  confidence       Float    @default(0) // Face recognition confidence
+  matchDistance    Float    @default(1.0) // Face encoding distance (lower = better match)
+  faceDetected     Boolean  @default(false)
+  numFaces         Int      @default(0) // Number of faces detected in image
+  
+  // Face analysis
+  faceEncodings    Json?    // Face encodings from the image
+  faceLocations    Json?    // Face bounding boxes
+  landmarks        Json?    // Facial landmarks
+  
+  // Fallback identification methods
+  fallbackMethod   String?  // "manual", "qr_code", "rfid", etc.
+  alternativeId    String?  // Alternative identification if face recognition fails
+  
+  // Processing metadata
+  processingTime   Float    @default(0) // Processing time in seconds
+  algorithmUsed    String?  // "face_recognition", "opencv", "manual"
+  modelVersion     String?
+  imageMetadata    Json?    // Image dimensions, format, etc.
+  
+  // Additional data
+  location         String?
+  notes            String?
+  verified         Boolean  @default(false) // Manual verification flag
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  driver Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@map("driver_identifications")
+}
+
+// Monitoring Sessions (for tracking real-time sessions)
+model MonitoringSession {
+  id                    String    @id @default(cuid())
+  sessionId            String    @unique // WebSocket session ID
+  driverId             String?   // Identified driver
+  status               SessionStatus @default(ACTIVE)
+  startTime            DateTime  @default(now())
+  endTime              DateTime?
+  
+  // Session statistics
+  totalImages          Int       @default(0)
+  totalProcessingTime  Float     @default(0) // Total processing time in seconds
+  averageRiskScore     Float     @default(0)
+  highRiskDetections   Int       @default(0)
+  
+  // Session metadata
+  clientInfo           Json?     // Browser info, screen resolution, etc.
+  userAgent           String?
+  remoteAddress       String?
+  
+  // Detection counts
+  alcoholDetections    Int       @default(0)
+  smokingDetections    Int       @default(0)
+  behaviorDetections   Int       @default(0)
+  
+  // Individual detection status (0 = not detected, 1 = detected)
+  alcohol_detected     Int       @default(0) // 0 or 1
+  drinking_detected    Int       @default(0) // 0 or 1
+  smoking_detected     Int       @default(0) // 0 or 1
+  drowsy_detected      Int       @default(0) // 0 or 1
+  sleeping_detected    Int       @default(0) // 0 or 1
+  mobile_use_detected  Int       @default(0) // 0 or 1
+  eating_detected      Int       @default(0) // 0 or 1
+  distracted_detected  Int       @default(0) // 0 or 1
+  
+  // Image paths for detected behaviors (saved only when status = 1)
+  alcohol_img          String?   // Path to alcohol detection image
+  drinking_img         String?   // Path to drinking detection image
+  smoking_img          String?   // Path to smoking detection image
+  drowsy_img           String?   // Path to drowsy detection image
+  sleeping_img         String?   // Path to sleeping detection image
+  mobile_use_img       String?   // Path to mobile use detection image
+  eating_img           String?   // Path to eating detection image
+  distracted_img       String?   // Path to distracted detection image
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("monitoring_sessions")
+}
+
+// Existing Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  SUPERVISOR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StressLevel {
+  LOW
+  NORMAL
+  MILD
+  HIGH
+  VERY_HIGH
+}
+
+enum RiskLevel {
+  NORMAL
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EARLY_LEAVE
+  HALF_DAY
+}
+
+enum DetectionSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertType {
+  HEALTH
+  ATTENDANCE
+  ALCOHOL_DETECTION
+  OBJECT_DETECTION
+  SYSTEM
+  SAFETY
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+// New Enums for monitoring sessions
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  TERMINATED
+  PAUSED
+}
