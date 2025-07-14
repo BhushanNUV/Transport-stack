@@ -143,19 +143,39 @@ export async function GET(
       
       // Also check all monitoring sessions (first 5)
       const allSessions = await prisma.$queryRaw<any[]>`
-        SELECT driverId, sessionId, createdAt, alcohol_detected, smoking_detected, drowsy_detected
+        SELECT driverId, sessionId, startTime, alcohol_detected, smoking_detected, drowsy_detected
         FROM monitoring_sessions
-        ORDER BY createdAt DESC
+        ORDER BY startTime DESC
         LIMIT 5
       `;
       
       console.log(`[DEBUG] Latest 5 monitoring sessions:`, allSessions);
       
+      // Check if any sessions exist for this specific driver
+      const driverSessions = await prisma.$queryRaw<any[]>`
+        SELECT driverId, sessionId, startTime, alcohol_detected, smoking_detected, drowsy_detected
+        FROM monitoring_sessions
+        WHERE driverId = ${id}
+        ORDER BY startTime DESC
+        LIMIT 3
+      `;
+      
+      console.log(`[DEBUG] Driver ${id} sessions:`, driverSessions);
+      
       const monitoringSessionResult = await prisma.$queryRaw<any[]>`
         SELECT *
         FROM monitoring_sessions
         WHERE driverId = ${id}
-        ORDER BY createdAt DESC
+          AND (
+            alcohol_detected = 1 OR 
+            smoking_detected = 1 OR 
+            drowsy_detected = 1 OR 
+            sleeping_detected = 1 OR 
+            mobile_use_detected = 1 OR 
+            eating_detected = 1 OR 
+            drinking_detected = 1
+          )
+        ORDER BY startTime DESC
         LIMIT 1
       `;
       

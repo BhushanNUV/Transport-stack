@@ -3,10 +3,10 @@ import type { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/api/auth/login', '/api/auth/logout', '/api/drivers'];
+const publicRoutes = ['/login', '/api/auth/login', '/api/auth/logout', '/api/drivers', '/api/debug'];
 
 // Routes that should be completely public (no auth required)
-const fullyPublicRoutes = ['/api/drivers'];
+const fullyPublicRoutes = ['/api/drivers', '/api/debug'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

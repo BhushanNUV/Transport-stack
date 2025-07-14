@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // POST - Save health vitals data for a specific driver
 export async function POST(request: NextRequest) {
@@ -64,20 +62,24 @@ export async function POST(request: NextRequest) {
 }
 
 // GET - Retrieve health vitals data for a specific driver
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { searchParams } = new URL(request.url);
-    const driverId = searchParams.get('driverId');
+    const { id } = await params;
     
-    if (!driverId) {
+    if (!id) {
       return NextResponse.json(
-        { error: 'Driver ID is required as query parameter' },
+        { error: 'Driver ID is required' },
         { status: 400 }
       );
     }
     
+    // Check if driver exists
     const driver = await prisma.driver.findUnique({
-      where: { id: driverId }
+      where: { id },
+      select: { id: true, name: true, driverId: true }
     });
 
     if (!driver) {
@@ -87,10 +89,82 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: driver
+    // Get health reports for this driver
+    const healthReports = await prisma.healthReport.findMany({
+      where: { driverId: id },
+      orderBy: { reportDate: 'desc' },
+      take: 20
     });
+
+    // Get monitoring sessions for this driver with health data
+    const monitoringSessions = await prisma.$queryRaw<any[]>`
+      SELECT 
+        ms.id as session_id,
+        ms.sessionId,
+        ms.driverId,
+        ms.startTime,
+        ms.endTime,
+        ms.status,
+        d.name as driver_name,
+        d.driverId as driver_id,
+        hr.id as health_report_id,
+        hr.reportDate,
+        hr.bloodPressureHigh,
+        hr.bloodPressureLow,
+        hr.heartRate,
+        hr.stressLevel,
+        hr.riskLevel,
+        hr.notes as health_notes
+      FROM monitoring_sessions ms
+      INNER JOIN drivers d ON ms.driverId = d.id
+      LEFT JOIN health_reports hr ON ms.driverId = hr.driverId 
+        AND DATE(ms.startTime) = DATE(hr.reportDate)
+      WHERE ms.driverId = ${id}
+        AND ms.driverId IS NOT NULL
+      ORDER BY ms.startTime DESC
+      LIMIT 50
+    `;
+
+    // Combine and format the data
+    const response = {
+      success: true,
+      data: {
+        driver: {
+          id: driver.id,
+          name: driver.name,
+          driverId: driver.driverId
+        },
+        healthReports: healthReports.map(report => ({
+          id: report.id,
+          reportDate: report.reportDate,
+          bloodPressureHigh: report.bloodPressureHigh,
+          bloodPressureLow: report.bloodPressureLow,
+          heartRate: report.heartRate,
+          stressLevel: report.stressLevel,
+          riskLevel: report.riskLevel,
+          notes: report.notes
+        })),
+        monitoringSessions: monitoringSessions.map(session => ({
+          session_id: session.session_id,
+          sessionId: session.sessionId,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          status: session.status,
+          healthReport: session.health_report_id ? {
+            id: session.health_report_id,
+            reportDate: session.reportDate,
+            bloodPressureHigh: session.bloodPressureHigh,
+            bloodPressureLow: session.bloodPressureLow,
+            heartRate: session.heartRate,
+            stressLevel: session.stressLevel,
+            riskLevel: session.riskLevel,
+            notes: session.health_notes
+          } : null
+        }))
+      }
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error retrieving health vitals:', error);
     return NextResponse.json(
