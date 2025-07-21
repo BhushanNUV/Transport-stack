@@ -7,33 +7,66 @@ let storage: Storage;
 let bucket: any;
 
 try {
-  // Try multiple paths for the credentials file
-  const possiblePaths = [
-    path.join(process.cwd(), 'numeric-ocean-454912-f4-304bce751e9d.json'),
-    path.join(__dirname, '../../numeric-ocean-454912-f4-304bce751e9d.json'),
-    '/home/mukesh/Transport-stack/numeric-ocean-454912-f4-304bce751e9d.json',
-    process.env.GCS_CREDENTIALS_PATH || ''
-  ];
+  // Check if we have base64 encoded credentials in env
+  if (process.env.GCS_CREDENTIALS_BASE64) {
+    console.log('Using base64 encoded GCS credentials from environment');
+    const credentialsJSON = Buffer.from(process.env.GCS_CREDENTIALS_BASE64, 'base64').toString('utf-8');
+    const credentials = JSON.parse(credentialsJSON);
+    
+    storage = new Storage({
+      credentials: credentials,
+      projectId: credentials.project_id || 'numeric-ocean-454912-f4',
+    });
+  } else {
+    // Try multiple paths for the credentials file
+    const possiblePaths = [
+      path.join(process.cwd(), 'numeric-ocean-454912-f4-304bce751e9d.json'),
+      path.join(__dirname, '../../numeric-ocean-454912-f4-304bce751e9d.json'),
+      '/home/mukesh/Transport-stack/numeric-ocean-454912-f4-304bce751e9d.json',
+      process.env.GCS_CREDENTIALS_PATH || ''
+    ];
 
-  let credentialsPath = '';
-  for (const p of possiblePaths) {
-    if (p && fs.existsSync(p)) {
-      credentialsPath = p;
-      console.log('Found GCS credentials at:', p);
-      break;
+    let credentialsPath = '';
+    let credentials = null;
+    
+    for (const p of possiblePaths) {
+      if (p && fs.existsSync(p)) {
+        try {
+          const fileContent = fs.readFileSync(p, 'utf8');
+          credentials = JSON.parse(fileContent);
+          credentialsPath = p;
+          console.log('Found GCS credentials at:', p);
+          break;
+        } catch (e) {
+          console.error(`Failed to read/parse credentials at ${p}:`, e);
+        }
+      }
     }
-  }
 
-  if (!credentialsPath) {
-    throw new Error('GCS credentials file not found. Please set GCS_CREDENTIALS_PATH environment variable.');
-  }
+    if (!credentials) {
+      throw new Error('GCS credentials file not found. Please set GCS_CREDENTIALS_PATH environment variable.');
+    }
 
-  storage = new Storage({
-    keyFilename: credentialsPath,
-    projectId: 'numeric-ocean-454912-f4',
-  });
+    // Use credentials object directly instead of keyFilename
+    storage = new Storage({
+      credentials: credentials,
+      projectId: credentials.project_id || 'numeric-ocean-454912-f4',
+    });
+  }
 
   bucket = storage.bucket(process.env.GCS_BUCKET_NAME || 'driver-health-monitoring-images');
+  
+  // Test the connection
+  bucket.exists().then(([exists]: [boolean]) => {
+    if (exists) {
+      console.log('Successfully connected to GCS bucket:', process.env.GCS_BUCKET_NAME || 'driver-health-monitoring-images');
+    } else {
+      console.error('GCS bucket does not exist:', process.env.GCS_BUCKET_NAME || 'driver-health-monitoring-images');
+    }
+  }).catch((err: any) => {
+    console.error('Failed to verify GCS bucket:', err.message);
+  });
+  
 } catch (error) {
   console.error('Failed to initialize GCS:', error);
 }
