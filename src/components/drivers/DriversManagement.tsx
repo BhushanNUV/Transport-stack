@@ -29,6 +29,7 @@ import SuccessModal from '@/components/modals/SuccessModal';
 export default function DriversManagement() {
   const [drivers, setDrivers] = useState<DriverWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -123,6 +124,8 @@ export default function DriversManagement() {
     
     if (!validateForm(formData)) return;
 
+    setSubmitting(true);
+
     try {
       const url = editingDriver ? `/api/drivers/${editingDriver.id}` : '/api/drivers';
       const method = editingDriver ? 'PUT' : 'POST';
@@ -187,6 +190,8 @@ export default function DriversManagement() {
       setShowSuccessModal(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -711,7 +716,7 @@ export default function DriversManagement() {
                     <div className="flex items-center space-x-3">
                       <label
                         htmlFor="profile-photo"
-                        className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+                        className={`flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <Camera className="h-4 w-4" />
                         <span>Choose Photo</span>
@@ -719,6 +724,7 @@ export default function DriversManagement() {
                           id="profile-photo"
                           type="file"
                           accept="image/*"
+                          disabled={submitting}
                           onChange={handleImageChange}
                           className="hidden"
                         />
@@ -726,11 +732,12 @@ export default function DriversManagement() {
                       {imagePreview && (
                         <button
                           type="button"
+                          disabled={submitting}
                           onClick={() => {
                             setSelectedImage(null);
                             setImagePreview(null);
                           }}
-                          className="px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700"
+                          className="px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Remove
                         </button>
@@ -751,9 +758,10 @@ export default function DriversManagement() {
                   <input
                     type="text"
                     required
+                    disabled={submitting}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
                       formErrors.name ? 'border-red-300' : 'border-gray-300'
                     }`}
                     placeholder="Enter full name"
@@ -771,9 +779,10 @@ export default function DriversManagement() {
                   <input
                     type="tel"
                     required
+                    disabled={submitting}
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
                       formErrors.phone ? 'border-red-300' : 'border-gray-300'
                     }`}
                     placeholder="Enter phone number"
@@ -792,9 +801,10 @@ export default function DriversManagement() {
                     required
                     min="18"
                     max="70"
+                    disabled={submitting}
                     value={formData.age}
                     onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) })}
-                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
                       formErrors.age ? 'border-red-300' : 'border-gray-300'
                     }`}
                   />
@@ -809,9 +819,10 @@ export default function DriversManagement() {
                   </label>
                   <select
                     required
+                    disabled={submitting}
                     value={formData.gender}
                     onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
-                    className="w-full p-3 border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full p-3 border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
@@ -825,12 +836,13 @@ export default function DriversManagement() {
                   </label>
                   <input
                     type="date"
+                    disabled={submitting}
                     value={formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().split('T')[0] : ''}
                     onChange={(e) => setFormData({ 
                       ...formData, 
                       dateOfBirth: e.target.value ? new Date(e.target.value) : undefined 
                     })}
-                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -843,12 +855,13 @@ export default function DriversManagement() {
                     min="30"
                     max="200"
                     step="0.1"
+                    disabled={submitting}
                     value={formData.weight || ''}
                     onChange={(e) => setFormData({ 
                       ...formData, 
                       weight: e.target.value ? parseFloat(e.target.value) : undefined 
                     })}
-                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Enter weight"
                   />
                 </div>
@@ -862,12 +875,13 @@ export default function DriversManagement() {
                     min="120"
                     max="220"
                     step="0.1"
+                    disabled={submitting}
                     value={formData.height || ''}
                     onChange={(e) => setFormData({ 
                       ...formData, 
                       height: e.target.value ? parseFloat(e.target.value) : undefined 
                     })}
-                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Enter height"
                   />
                 </div>
@@ -879,9 +893,10 @@ export default function DriversManagement() {
                 </label>
                 <textarea
                   rows={3}
+                  disabled={submitting}
                   value={formData.address || ''}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Enter address"
                 />
               </div>
@@ -889,16 +904,25 @@ export default function DriversManagement() {
               <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
                 <button
                   type="button"
+                  disabled={submitting}
                   onClick={handleCloseModal}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
-                  {editingDriver ? 'Update Driver' : 'Add Driver'}
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>{editingDriver ? 'Updating...' : 'Adding...'}</span>
+                    </>
+                  ) : (
+                    <span>{editingDriver ? 'Update Driver' : 'Add Driver'}</span>
+                  )}
                 </button>
               </div>
             </form>
