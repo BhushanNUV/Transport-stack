@@ -364,8 +364,8 @@ async function uploadImageToExternalAPI(file: File, driverId: string): Promise<s
     const result = await response.json();
     
     if (result.success) {
-      // Return only the filename, not the full URL
-      return filename;
+      // Return the filename/URL from the Flask API response
+      return result.filename;
     } else {
       throw new Error(result.error || 'Failed to upload image');
     }
