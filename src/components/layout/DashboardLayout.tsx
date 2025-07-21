@@ -2,11 +2,13 @@
 
 import { useState, ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import ProfileDropdown from '@/components/profile/ProfileDropdown';
+import SettingsModal from '@/components/settings/SettingsModal';
 import {
   Users,
   Calendar,
   Activity,
-  Bell,
   Settings,
   LogOut,
   Menu,
@@ -29,6 +31,7 @@ interface NavigationItem {
 
 export default function DashboardLayout({ children, currentPage = 'dashboard' }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { user, logout } = useAuth();
 
   const navigation: NavigationItem[] = [
@@ -216,32 +219,17 @@ export default function DashboardLayout({ children, currentPage = 'dashboard' }:
 
         {/* Header actions */}
         <div className="flex items-center space-x-3">
-          <button className="relative text-slate-400 hover:text-blue-600 p-2 rounded-lg hover:bg-blue-50 transition-colors">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-              3
-            </span>
-          </button>
-          <button className="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition-colors">
+          <NotificationDropdown />
+          <button 
+            onClick={() => setSettingsOpen(true)}
+            className="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition-colors"
+          >
             <Settings className="h-5 w-5" />
           </button>
           
-          {/* User avatar and logout - desktop only */}
-          <div className="hidden sm:flex items-center space-x-3 ml-3 pl-3 border-l border-slate-200">
-            <div className="h-8 w-8 gradient-primary rounded-full flex items-center justify-center text-white font-semibold shadow-sm">
-              <span className="text-xs">{user?.name?.[0]?.toUpperCase() || 'U'}</span>
-            </div>
-            <div className="hidden lg:block">
-              <p className="text-sm font-medium text-slate-900">{user?.name || 'User'}</p>
-              <p className="text-xs text-slate-500">{user?.role || 'User'}</p>
-            </div>
-            <button 
-              onClick={logout}
-              className="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors"
-              title="Logout"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+          {/* User profile dropdown - desktop only */}
+          <div className="hidden sm:flex items-center ml-3 pl-3 border-l border-slate-200">
+            <ProfileDropdown />
           </div>
         </div>
       </div>
@@ -251,6 +239,9 @@ export default function DashboardLayout({ children, currentPage = 'dashboard' }:
           {children}
         </div>
       </main>
+
+      {/* Settings Modal */}
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

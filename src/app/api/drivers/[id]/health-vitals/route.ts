@@ -89,7 +89,29 @@ export async function GET(
       );
     }
 
-    // Get health reports for this driver
+    // Get the latest health report for this driver with full health vitals using raw query
+    const latestHealthReportRaw = await prisma.$queryRaw<any[]>`
+      SELECT 
+        hr.*,
+        d.id as driver_id,
+        d.name as driver_name,
+        d.driverId as driver_driverId,
+        d.age as driver_age,
+        d.weight as driver_weight,
+        d.height as driver_height,
+        d.gender as driver_gender,
+        d.phone as driver_phone,
+        d.address as driver_address
+      FROM health_reports hr
+      LEFT JOIN drivers d ON hr.driverId = d.id
+      WHERE hr.driverId = ${id}
+      ORDER BY hr.reportDate DESC
+      LIMIT 1
+    `;
+    
+    const latestHealthReport = latestHealthReportRaw.length > 0 ? latestHealthReportRaw[0] : null;
+
+    // Get all health reports for this driver
     const healthReports = await prisma.healthReport.findMany({
       where: { driverId: id },
       orderBy: { reportDate: 'desc' },
@@ -134,6 +156,51 @@ export async function GET(
           name: driver.name,
           driverId: driver.driverId
         },
+        // Latest health report with all health vitals
+        latestHealthReport: latestHealthReport ? {
+          id: latestHealthReport.id,
+          reportDate: latestHealthReport.reportDate,
+          // Basic health metrics
+          bloodPressureHigh: latestHealthReport.bloodPressureHigh,
+          bloodPressureLow: latestHealthReport.bloodPressureLow,
+          heartRate: latestHealthReport.heartRate,
+          stressLevel: latestHealthReport.stressLevel,
+          riskLevel: latestHealthReport.riskLevel,
+          notes: latestHealthReport.notes,
+          // Detailed health vitals from health_reports table
+          heart_age: latestHealthReport.heart_age,
+          ascvd_risk: latestHealthReport.ascvd_risk,
+          low_hemoglobin_risk: latestHealthReport.low_hemoglobin_risk,
+          high_total_cholesterol_risk: latestHealthReport.high_total_cholesterol_risk,
+          high_fasting_glucose_risk: latestHealthReport.high_fasting_glucose_risk,
+          heart_rate: latestHealthReport.heart_rate,
+          breathing_rate: latestHealthReport.breathing_rate,
+          prq: latestHealthReport.prq,
+          oxygen_saturation: latestHealthReport.oxygen_saturation,
+          blood_pressure: latestHealthReport.blood_pressure,
+          stress_level: latestHealthReport.stress_level,
+          recovery_ability: latestHealthReport.recovery_ability,
+          stress_response: latestHealthReport.stress_response,
+          respiration: latestHealthReport.respiration,
+          hrv_sdnn: latestHealthReport.hrv_sdnn,
+          hemoglobin: latestHealthReport.hemoglobin,
+          hba1c: latestHealthReport.hba1c,
+          heart_rate_conf_level: latestHealthReport.heart_rate_conf_level,
+          breathing_rate_conf_level: latestHealthReport.breathing_rate_conf_level,
+          prq_conf_level: latestHealthReport.prq_conf_level,
+          hrv_sdnn_conf_level: latestHealthReport.hrv_sdnn_conf_level,
+          license_key: latestHealthReport.license_key,
+          hypertension_risk: latestHealthReport.hypertension_risk,
+          diabetic_risk: latestHealthReport.diabetic_risk,
+          // Driver basic info
+          age: latestHealthReport.driver_age,
+          weight: latestHealthReport.driver_weight,
+          height: latestHealthReport.driver_height,
+          // Calculate BMI if weight and height are available
+          bmi: latestHealthReport.driver_weight && latestHealthReport.driver_height 
+            ? (latestHealthReport.driver_weight / Math.pow(latestHealthReport.driver_height / 100, 2)).toFixed(1)
+            : null
+        } : null,
         healthReports: healthReports.map(report => ({
           id: report.id,
           reportDate: report.reportDate,

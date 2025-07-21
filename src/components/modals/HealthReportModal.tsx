@@ -68,40 +68,39 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
       // Combine the data
       const combinedData = {
         driver: driverData.data,
-        healthVitals: {
-          // Basic driver info from database
-          ...(healthVitalsData.data || {}),
-          // Calculate BMI if height and weight are available
-          bmi: healthVitalsData.data?.weight && healthVitalsData.data?.height 
-            ? (healthVitalsData.data.weight / Math.pow(healthVitalsData.data.height / 100, 2)).toFixed(1)
+        healthVitals: healthVitalsData.data?.latestHealthReport || {
+          // Default values if no health report exists
+          age: driverData.data.age,
+          weight: driverData.data.weight,
+          height: driverData.data.height,
+          bmi: driverData.data.weight && driverData.data.height 
+            ? (driverData.data.weight / Math.pow(driverData.data.height / 100, 2)).toFixed(1)
             : null,
-          // Comprehensive mock health vitals for demonstration (until real data is available)
-          heart_age: driverData.data.age ? `${driverData.data.age + 2} years` : '27 years',
-          ascvd_risk: 'Low (5%)',
-          blood_pressure: '120/80 mmHg',
-          heart_rate: '72 BPM',
-          breathing_rate: '16 breaths/min',
-          prq: '85 ms',
-          oxygen_saturation: '98%',
-          stress_level: 'Normal',
-          recovery_ability: 'Good',
-          stress_response: 'Stable',
-          respiration: '14-18 cycles/min',
-          hrv_sdnn: '45 ms',
-          hemoglobin: '14.5 g/dL',
-          hba1c: '5.4%',
-          // Risk assessments
-          low_hemoglobin_risk: 'Low',
-          high_total_cholesterol_risk: 'Low',
-          high_fasting_glucose_risk: 'Low',
-          hypertension_risk: 'Low',
-          diabetic_risk: 'Low',
-          // Confidence levels
-          heart_rate_conf_level: '95%',
-          breathing_rate_conf_level: '92%',
-          prq_conf_level: '88%',
-          hrv_sdnn_conf_level: '90%'
-        }, // Combined real and mock health vitals data
+          // All other fields will be null/undefined if no health report exists
+          heart_age: null,
+          ascvd_risk: null,
+          blood_pressure: null,
+          heart_rate: null,
+          breathing_rate: null,
+          prq: null,
+          oxygen_saturation: null,
+          stress_level: null,
+          recovery_ability: null,
+          stress_response: null,
+          respiration: null,
+          hrv_sdnn: null,
+          hemoglobin: null,
+          hba1c: null,
+          low_hemoglobin_risk: null,
+          high_total_cholesterol_risk: null,
+          high_fasting_glucose_risk: null,
+          hypertension_risk: null,
+          diabetic_risk: null,
+          heart_rate_conf_level: null,
+          breathing_rate_conf_level: null,
+          prq_conf_level: null,
+          hrv_sdnn_conf_level: null
+        }, // Real health vitals data from health_reports table
         latestReport: driverData.data.healthReports?.[0] || null,
         alcoholDetections: driverData.data.alcoholDetections || [],
         objectDetections: driverData.data.objectDetections || [],
@@ -111,14 +110,14 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
           drowsy_detected: 0,
           sleeping_detected: 0,
           mobile_use_detected: 0,
-          eating_detected: 0,
+          distracted_detected: 0,
           drinking_detected: 0,
           alcohol_img_url: null,
           smoking_img_url: null,
           drowsy_img_url: null,
           sleeping_img_url: null,
           mobile_use_img_url: null,
-          eating_img_url: null,
+          distracted_img_url: null,
           drinking_img_url: null
         },
         recommendations: []
@@ -644,19 +643,19 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                       )}
                     </div>
 
-                    {/* Eating Detection */}
-                    <div className={`p-4 rounded-lg border-2 ${latestMonitoringSession.eating_detected === 1 ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
+                    {/* Distraction Detection */}
+                    <div className={`p-4 rounded-lg border-2 ${latestMonitoringSession.distracted_detected === 1 ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-slate-700">Eating</h4>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${latestMonitoringSession.eating_detected === 1 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                          {latestMonitoringSession.eating_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}
+                        <h4 className="font-medium text-slate-700">Distraction</h4>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${latestMonitoringSession.distracted_detected === 1 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                          {latestMonitoringSession.distracted_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}
                         </span>
                       </div>
-                      {latestMonitoringSession.eating_detected === 1 && latestMonitoringSession.eating_img_url && (
+                      {latestMonitoringSession.distracted_detected === 1 && latestMonitoringSession.distracted_img_url && (
                         <div className="mt-2">
                           <img 
-                            src={latestMonitoringSession.eating_img_url} 
-                            alt="Eating detection"
+                            src={latestMonitoringSession.distracted_img_url} 
+                            alt="Distraction detection"
                             className="w-full h-24 object-cover rounded border"
                           />
                         </div>

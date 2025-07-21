@@ -344,6 +344,12 @@ export default function HealthReportsManagement() {
                   Heart Rate
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Breathing Rate
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Oxygen Saturation
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Stress Level
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -377,6 +383,12 @@ export default function HealthReportsManagement() {
                       <div className="animate-pulse h-4 w-12 bg-gray-200 rounded"></div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="animate-pulse h-4 w-12 bg-gray-200 rounded"></div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="animate-pulse h-4 w-12 bg-gray-200 rounded"></div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="animate-pulse h-6 w-16 bg-gray-200 rounded-full"></div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -389,7 +401,7 @@ export default function HealthReportsManagement() {
                 ))
               ) : healthReports.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                     No health reports found
                   </td>
                 </tr>
@@ -398,9 +410,19 @@ export default function HealthReportsManagement() {
                   <tr key={report.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
-                        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-blue-600" />
-                        </div>
+                        {report.driver.profilePhoto ? (
+                          <img
+                            src={report.driver.profilePhoto.startsWith('http://') || report.driver.profilePhoto.startsWith('https://') 
+                              ? report.driver.profilePhoto 
+                              : `${process.env.NEXT_PUBLIC_FLASK_API_BASE_URL || 'http://localhost:5000'}/driver_images/${report.driver.profilePhoto}`}
+                            alt={report.driver.name}
+                            className="h-10 w-10 rounded-full object-cover border-2 border-gray-200"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <User className="h-5 w-5 text-blue-600" />
+                          </div>
+                        )}
                         <div>
                           <div className="text-sm font-medium text-gray-900">{report.driver.name}</div>
                           <div className="text-sm text-gray-500">{report.driver.driverId}</div>
@@ -417,22 +439,35 @@ export default function HealthReportsManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {report.bloodPressureHigh && report.bloodPressureLow 
+                        {report.blood_pressure || 
+                         (report.bloodPressureHigh && report.bloodPressureLow 
                           ? `${report.bloodPressureHigh}/${report.bloodPressureLow}`
                           : 'N/A'
-                        }
+                         )}
                       </div>
                       <div className="text-sm text-gray-500">mmHg</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {report.heartRate || 'N/A'}
+                        {report.heart_rate || report.heartRate || 'N/A'}
                       </div>
                       <div className="text-sm text-gray-500">BPM</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm font-medium ${getStressLevelColor(report.stressLevel)}`}>
-                        {report.stressLevel ? report.stressLevel.replace('_', ' ') : 'N/A'}
+                      <div className="text-sm text-gray-900">
+                        {report.breathing_rate || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500">breaths/min</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {report.oxygen_saturation || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500">%</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`text-sm font-medium ${getStressLevelColor(report.stress_level || report.stressLevel)}`}>
+                        {(report.stress_level || report.stressLevel) ? (report.stress_level || report.stressLevel).replace('_', ' ') : 'N/A'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

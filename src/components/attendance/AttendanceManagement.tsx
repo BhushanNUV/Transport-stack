@@ -331,45 +331,6 @@ export default function AttendanceManagement() {
     });
   };
 
-  const handleCheckIn = async (driverId: string) => {
-    try {
-      const response = await fetch('/api/attendance/check-in', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ driverId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to check in');
-      }
-
-      await fetchAttendanceData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to check in');
-    }
-  };
-
-  const handleCheckOut = async (driverId: string) => {
-    try {
-      const response = await fetch('/api/attendance/check-out', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ driverId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to check out');
-      }
-
-      await fetchAttendanceData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to check out');
-    }
-  };
 
   const getStatusIcon = (status: AttendanceStatus) => {
     switch (status) {
@@ -626,9 +587,6 @@ export default function AttendanceManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -650,17 +608,11 @@ export default function AttendanceManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="animate-pulse h-6 w-16 bg-gray-200 rounded-full"></div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="animate-pulse flex space-x-2">
-                        <div className="h-8 w-16 bg-gray-200 rounded"></div>
-                        <div className="h-8 w-16 bg-gray-200 rounded"></div>
-                      </div>
-                    </td>
                   </tr>
                 ))
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
                     No attendance records found
                   </td>
                 </tr>
@@ -669,9 +621,19 @@ export default function AttendanceManagement() {
                   <tr key={record.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
-                        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-blue-600" />
-                        </div>
+                        {record.driver.profilePhoto ? (
+                          <img
+                            src={record.driver.profilePhoto.startsWith('http://') || record.driver.profilePhoto.startsWith('https://') 
+                              ? record.driver.profilePhoto 
+                              : `${process.env.NEXT_PUBLIC_FLASK_API_BASE_URL || 'http://localhost:5000'}/driver_images/${record.driver.profilePhoto}`}
+                            alt={record.driver.name}
+                            className="h-10 w-10 rounded-full object-cover border-2 border-gray-200"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <User className="h-5 w-5 text-blue-600" />
+                          </div>
+                        )}
                         <div>
                           <div className="text-sm font-medium text-gray-900">{record.driver.name}</div>
                           <div className="text-sm text-gray-500">{record.driver.driverId}</div>
@@ -692,30 +654,6 @@ export default function AttendanceManagement() {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
                           {record.status.replace('_', ' ')}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {isToday(new Date(record.date)) && (
-                          <>
-                            {!record.checkInTime && (
-                              <button
-                                onClick={() => handleCheckIn(record.driverId)}
-                                className="px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700"
-                              >
-                                Check In
-                              </button>
-                            )}
-                            {record.checkInTime && !record.checkOutTime && (
-                              <button
-                                onClick={() => handleCheckOut(record.driverId)}
-                                className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700"
-                              >
-                                Check Out
-                              </button>
-                            )}
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>

@@ -38,20 +38,14 @@ export async function GET(request: NextRequest) {
       queryEndDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
     }
 
-    // Get all drivers
-    const allDrivers = await prisma.driver.findMany({
-      where: driverId ? { id: driverId } : undefined,
-      select: {
-        id: true,
-        driverId: true,
-        name: true,
-        email: true,
-        phone: true,
-        age: true,
-        gender: true,
-        profilePhoto: true,
-      },
-    });
+    // Get all drivers using raw SQL to avoid email field error
+    const driversQuery = driverId 
+      ? `SELECT id, driverId, name, phone, age, gender, profilePhoto FROM drivers WHERE id = ?`
+      : `SELECT id, driverId, name, phone, age, gender, profilePhoto FROM drivers`;
+    
+    const allDrivers = driverId 
+      ? await prisma.$queryRawUnsafe(driversQuery, driverId)
+      : await prisma.$queryRawUnsafe(driversQuery);
 
     // Get monitoring sessions for each day in the date range
     const attendanceRecords = [];
@@ -104,7 +98,7 @@ export async function GET(request: NextRequest) {
         const firstSession = firstSessionResult[0] || null;
         const lastSession = lastSessionResult[0] || null;
 
-        // Determine status and times
+        // Determine status and times - simplified to just PRESENT/ABSENT
         let attendanceStatus = 'ABSENT';
         let checkInTime = null;
         let checkOutTime = null;
@@ -116,13 +110,6 @@ export async function GET(request: NextRequest) {
           checkInTime = new Date(firstSession.startTime);
           location = 'Monitoring System';
 
-          // Check if they checked in late (after 9 AM)
-          const nineAM = new Date(dayStart);
-          nineAM.setHours(9, 0, 0, 0);
-          if (new Date(firstSession.startTime) > nineAM) {
-            attendanceStatus = 'LATE';
-          }
-
           // If there's a completed session, set check-out time
           if (lastSession && lastSession.endTime) {
             checkOutTime = new Date(lastSession.endTime);
@@ -131,13 +118,6 @@ export async function GET(request: NextRequest) {
             const checkInMs = new Date(firstSession.startTime).getTime();
             const checkOutMs = new Date(lastSession.endTime).getTime();
             workingHours = (checkOutMs - checkInMs) / (1000 * 60 * 60); // Convert to hours
-
-            // Check for early leave (less than 8 hours)
-            if (workingHours < 8 && workingHours > 4) {
-              attendanceStatus = 'HALF_DAY';
-            } else if (workingHours < 4) {
-              attendanceStatus = 'EARLY_LEAVE';
-            }
           }
         }
 

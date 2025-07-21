@@ -17,14 +17,19 @@ function processMonitoringSession(session: any) {
     { field: 'drowsy_detected', imgField: 'drowsy_img' },
     { field: 'sleeping_detected', imgField: 'sleeping_img' },
     { field: 'mobile_use_detected', imgField: 'mobile_use_img' },
-    { field: 'eating_detected', imgField: 'eating_img' },
+    { field: 'distracted_detected', imgField: 'distracted_img' },
     { field: 'drinking_detected', imgField: 'drinking_img' }
   ];
 
   detectionTypes.forEach(({ field, imgField }) => {
     // If detected (1) and has image path, construct full URL
     if (processedSession[field] === 1 && processedSession[imgField]) {
-      processedSession[`${imgField}_url`] = `${DETECTION_IMAGE_BASE_URL}/${processedSession[imgField]}`;
+      // Check if the image path is already a full URL (starts with http:// or https://)
+      if (processedSession[imgField].startsWith('http://') || processedSession[imgField].startsWith('https://')) {
+        processedSession[`${imgField}_url`] = processedSession[imgField];
+      } else {
+        processedSession[`${imgField}_url`] = `${DETECTION_IMAGE_BASE_URL}/${processedSession[imgField]}`;
+      }
     } else {
       processedSession[`${imgField}_url`] = null;
     }

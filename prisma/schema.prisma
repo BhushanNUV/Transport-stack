@@ -27,8 +27,7 @@ model Driver {
   id          String   @id @default(cuid())
   driverId    String   @unique // DRV-001, DRV-002, etc.
   name        String
-  email       String   @unique
-  phone       String
+  phone       String   @unique // Made unique since email was removed
   age         Int
   gender      Gender
   address     String?

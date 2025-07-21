@@ -4,24 +4,43 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
   try {
     const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
 
     // Get total drivers count
     const totalDrivers = await prisma.driver.count();
 
-    // Get active drivers today (drivers who checked in today)
-    const activeToday = await prisma.attendanceRecord.count({
+    // Get drivers count from last month for comparison
+    const driversLastMonth = await prisma.driver.count({
       where: {
-        date: {
-          gte: startOfDay,
-          lt: endOfDay,
-        },
-        checkInTime: {
-          not: null,
+        createdAt: {
+          gte: startOfLastMonth,
+          lte: endOfLastMonth,
         },
       },
     });
+
+    // Get present drivers today (drivers who have monitoring sessions today - same logic as attendance API)
+    const presentTodayResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT driverId) as count
+      FROM monitoring_sessions 
+      WHERE DATE(startTime) = DATE(NOW())
+        AND driverId IS NOT NULL
+    `;
+    const activeToday = Number(presentTodayResult[0]?.count || 0);
+
+    // Get present drivers yesterday for comparison
+    const presentYesterdayResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT driverId) as count
+      FROM monitoring_sessions 
+      WHERE DATE(startTime) = DATE(${yesterday})
+        AND driverId IS NOT NULL
+    `;
+    const activeYesterday = Number(presentYesterdayResult[0]?.count || 0);
 
     // Get health alerts count (recent health reports with high risk levels)
     const healthAlerts = await prisma.healthReport.count({
@@ -35,10 +54,41 @@ export async function GET() {
       },
     });
 
+    // Get health alerts from previous week for comparison
+    const healthAlertsLastWeek = await prisma.healthReport.count({
+      where: {
+        reportDate: {
+          gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
+          lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+        },
+        riskLevel: {
+          in: ['HIGH', 'CRITICAL'],
+        },
+      },
+    });
+
     // Calculate attendance rate for today
     const totalScheduledDrivers = totalDrivers; // Assuming all drivers are scheduled
     const attendanceRate = totalScheduledDrivers > 0 
       ? Math.round((activeToday / totalScheduledDrivers) * 100 * 100) / 100 
+      : 0;
+
+    // Calculate attendance rate for last week for comparison
+    const lastWeekStart = new Date(today);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekEnd = new Date(today);
+    lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+
+    const presentLastWeekResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT driverId) as count
+      FROM monitoring_sessions 
+      WHERE DATE(startTime) >= DATE(${lastWeekStart})
+        AND DATE(startTime) <= DATE(${lastWeekEnd})
+        AND driverId IS NOT NULL
+    `;
+    const activeLastWeek = Number(presentLastWeekResult[0]?.count || 0);
+    const attendanceRateLastWeek = totalScheduledDrivers > 0 
+      ? Math.round((activeLastWeek / (totalScheduledDrivers * 7)) * 100 * 100) / 100 
       : 0;
 
     // Calculate average health score from recent reports
@@ -206,7 +256,13 @@ export async function GET() {
     });
 
     // Format recent activity
-    const formattedActivity = [];
+    const formattedActivity: Array<{
+      id: string;
+      type: string;
+      message: string;
+      time: string;
+      driverName: string;
+    }> = [];
 
     // Add check-ins
     recentActivity.recentCheckIns.forEach(record => {
@@ -248,6 +304,12 @@ export async function GET() {
       return timeA - timeB;
     });
 
+    // Calculate changes
+    const driversChangeThisMonth = totalDrivers - driversLastMonth;
+    const presentChangeFromYesterday = activeToday - activeYesterday;
+    const healthAlertsChange = healthAlerts - healthAlertsLastWeek;
+    const attendanceRateChange = attendanceRate - attendanceRateLastWeek;
+
     const stats = {
       totalDrivers,
       activeToday,
@@ -255,6 +317,12 @@ export async function GET() {
       attendanceRate,
       avgHealthScore,
       criticalCases,
+      changes: {
+        driversThisMonth: driversChangeThisMonth,
+        presentFromYesterday: presentChangeFromYesterday,
+        healthAlertsFromLastWeek: healthAlertsChange,
+        attendanceRateFromLastWeek: attendanceRateChange,
+      },
     };
 
     return NextResponse.json({

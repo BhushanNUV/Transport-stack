@@ -18,32 +18,9 @@ export async function GET(request: NextRequest) {
     // Note: For now using simplified query without filters to avoid SQL parameter issues
     // TODO: Add search, riskLevel, stressLevel, and dateRange filters when needed
 
-    // Execute the main query using Prisma.sql for proper parameter binding
+    // Execute the main query to get health reports directly from health_reports table only
     const healthReports = await prisma.$queryRaw`
-      SELECT DISTINCT
-        ms.id as session_id,
-        ms.sessionId,
-        ms.driverId,
-        ms.startTime,
-        ms.endTime,
-        ms.status as session_status,
-        ms.totalImages,
-        ms.averageRiskScore,
-        ms.highRiskDetections,
-        ms.alcoholDetections,
-        ms.smokingDetections,
-        ms.behaviorDetections,
-        d.driverId as driver_code,
-        d.name as driver_name,
-        d.email,
-        d.phone,
-        d.age,
-        d.gender,
-        d.address,
-        d.profilePhoto,
-        d.dateOfBirth,
-        d.weight,
-        d.height,
+      SELECT 
         hr.id as health_report_id,
         hr.reportDate,
         hr.bloodPressureHigh,
@@ -63,40 +40,26 @@ export async function GET(request: NextRequest) {
         hr.hypertension_risk,
         hr.diabetic_risk,
         hr.createdAt as health_report_created,
-        hr.updatedAt as health_report_updated
-      FROM monitoring_sessions ms
-      INNER JOIN drivers d ON ms.driverId = d.id
-      LEFT JOIN health_reports hr ON ms.driverId = hr.driverId 
-        AND DATE(ms.startTime) = DATE(hr.reportDate)
-      WHERE ms.driverId IS NOT NULL
-      ORDER BY ms.startTime DESC
+        hr.updatedAt as health_report_updated,
+        hr.driverId,
+        d.driverId as driver_code,
+        d.name as driver_name,
+        d.phone,
+        d.age,
+        d.gender,
+        d.address,
+        d.profilePhoto,
+        d.dateOfBirth,
+        d.weight,
+        d.height
+      FROM health_reports hr
+      INNER JOIN drivers d ON hr.driverId = d.id
+      WHERE hr.id IS NOT NULL
+      ORDER BY hr.reportDate DESC
       LIMIT ${limit} OFFSET ${skip}
     ` as Array<{
-      session_id: string;
-      sessionId: string;
-      driverId: string;
-      startTime: Date;
-      endTime: Date | null;
-      session_status: string;
-      totalImages: number;
-      averageRiskScore: number;
-      highRiskDetections: number;
-      alcoholDetections: number;
-      smokingDetections: number;
-      behaviorDetections: number;
-      driver_code: string;
-      driver_name: string;
-      email: string;
-      phone: string;
-      age: number;
-      gender: string;
-      address: string | null;
-      profilePhoto: string | null;
-      dateOfBirth: Date | null;
-      weight: number | null;
-      height: number | null;
-      health_report_id: string | null;
-      reportDate: Date | null;
+      health_report_id: string;
+      reportDate: Date;
       bloodPressureHigh: number | null;
       bloodPressureLow: number | null;
       heartRate: number | null;
@@ -113,31 +76,41 @@ export async function GET(request: NextRequest) {
       hba1c: string | null;
       hypertension_risk: string | null;
       diabetic_risk: string | null;
-      health_report_created: Date | null;
-      health_report_updated: Date | null;
+      health_report_created: Date;
+      health_report_updated: Date;
+      driverId: string;
+      driver_code: string;
+      driver_name: string;
+      email: string;
+      phone: string;
+      age: number;
+      gender: string;
+      address: string | null;
+      profilePhoto: string | null;
+      dateOfBirth: Date | null;
+      weight: number | null;
+      height: number | null;
     }>;
 
-    // Get total count
+    // Get total count from health_reports table
     const totalResult = await prisma.$queryRaw`
-      SELECT COUNT(DISTINCT ms.id) as total
-      FROM monitoring_sessions ms
-      INNER JOIN drivers d ON ms.driverId = d.id
-      LEFT JOIN health_reports hr ON ms.driverId = hr.driverId 
-        AND DATE(ms.startTime) = DATE(hr.reportDate)
-      WHERE ms.driverId IS NOT NULL
+      SELECT COUNT(DISTINCT hr.id) as total
+      FROM health_reports hr
+      INNER JOIN drivers d ON hr.driverId = d.id
+      WHERE hr.id IS NOT NULL
     ` as Array<{ total: bigint }>;
     const total = Number(totalResult[0]?.total || 0);
 
     // Transform the data to match the expected format
     const formattedReports = healthReports.map(report => ({
-      id: report.health_report_id || report.session_id,
-      reportDate: report.reportDate || report.startTime,
+      id: report.health_report_id,
+      reportDate: report.reportDate,
       bloodPressureHigh: report.bloodPressureHigh,
       bloodPressureLow: report.bloodPressureLow,
       heartRate: report.heartRate,
       stressLevel: report.stressLevel,
       riskLevel: report.riskLevel || 'NORMAL',
-      notes: report.notes || `Session: ${report.sessionId}`,
+      notes: report.notes,
       // Additional health data from new fields
       heart_rate: report.hr_heart_rate,
       breathing_rate: report.breathing_rate,
@@ -149,17 +122,9 @@ export async function GET(request: NextRequest) {
       hba1c: report.hba1c,
       hypertension_risk: report.hypertension_risk,
       diabetic_risk: report.diabetic_risk,
-      // Session data
-      sessionId: report.sessionId,
-      sessionStatus: report.session_status,
-      totalImages: report.totalImages,
-      averageRiskScore: report.averageRiskScore,
-      highRiskDetections: report.highRiskDetections,
-      alcoholDetections: report.alcoholDetections,
-      smokingDetections: report.smokingDetections,
-      behaviorDetections: report.behaviorDetections,
-      createdAt: report.health_report_created || report.startTime,
-      updatedAt: report.health_report_updated || report.endTime || report.startTime,
+      // Timestamps
+      createdAt: report.health_report_created,
+      updatedAt: report.health_report_updated,
       driver: {
         id: report.driverId,
         driverId: report.driver_code,

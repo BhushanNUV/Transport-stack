@@ -2,131 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiResponse } from '@/types';
 
-// Mock data for when database is not available
-function getMockHealthData(driverId: string) {
-  const mockDrivers = {
-    '1': {
-      driver: {
-        id: '1',
-        driverId: 'DRV-001',
-        name: 'John Smith',
-        email: 'john.smith@example.com',
-        phone: '+1-555-0101',
-        age: 35,
-        gender: 'MALE',
-        address: '123 Main St, Anytown, AT 12345',
-        weight: 75.5,
-        height: 180,
-      },
-      latestReport: {
-        id: '1',
-        driverId: '1',
-        reportDate: new Date(),
-        bloodPressureHigh: 140,
-        bloodPressureLow: 90,
-        heartRate: 85,
-        stressLevel: 'MILD',
-        riskLevel: 'MEDIUM',
-        notes: 'Regular checkup, slight elevation in stress levels',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      alcoholDetections: [],
-      objectDetections: [
-        {
-          id: '1',
-          driverId: '1',
-          detectedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          objectType: 'phone',
-          confidence: 0.85,
-          imageUrl: 'https://picsum.photos/400/300?random=1',
-          location: 'Highway 101, Mile 25',
-          severity: 'MEDIUM',
-          notes: 'Phone usage detected during driving',
-          createdAt: new Date(),
-        }
-      ],
-      recommendations: [
-        'Elevated blood pressure detected. Monitor daily and consult healthcare provider.',
-        'Implement stress reduction techniques such as meditation or deep breathing exercises.',
-        'Phone usage detected while driving. Review hands-free policies and safe driving practices.',
-        'Take regular breaks during long driving periods to reduce stress and fatigue.'
-      ]
-    },
-    '2': {
-      driver: {
-        id: '2',
-        driverId: 'DRV-002',
-        name: 'Sarah Johnson',
-        email: 'sarah.johnson@example.com',
-        phone: '+1-555-0102',
-        age: 42,
-        gender: 'FEMALE',
-        address: '456 Oak Ave, Somewhere, ST 67890',
-        weight: 65.0,
-        height: 165,
-      },
-      latestReport: {
-        id: '2',
-        driverId: '2',
-        reportDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        bloodPressureHigh: 160,
-        bloodPressureLow: 100,
-        heartRate: 105,
-        stressLevel: 'HIGH',
-        riskLevel: 'HIGH',
-        notes: 'Elevated blood pressure and heart rate, recommend medical consultation',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      alcoholDetections: [],
-      objectDetections: [],
-      recommendations: [
-        'High blood pressure detected. Consult with a healthcare provider immediately.',
-        'Reduce sodium intake and increase physical activity.',
-        'High stress levels detected. Consider stress management counseling.',
-        'Monitor blood pressure daily and maintain a log.',
-        'Take regular breaks during long driving periods.'
-      ]
-    },
-    '3': {
-      driver: {
-        id: '3',
-        driverId: 'DRV-003',
-        name: 'Mike Davis',
-        email: 'mike.davis@example.com',
-        phone: '+1-555-0103',
-        age: 29,
-        gender: 'MALE',
-        address: '789 Pine Rd, Elsewhere, ET 34567',
-        weight: 82.3,
-        height: 175,
-      },
-      latestReport: {
-        id: '3',
-        driverId: '3',
-        reportDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        bloodPressureHigh: 120,
-        bloodPressureLow: 75,
-        heartRate: 72,
-        stressLevel: 'LOW',
-        riskLevel: 'NORMAL',
-        notes: 'Excellent health indicators',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      alcoholDetections: [],
-      objectDetections: [],
-      recommendations: [
-        'Maintain current healthy habits and continue regular health monitoring.',
-        'Stay hydrated and take regular breaks during long driving periods.',
-        'Excellent health indicators - keep up the good work!'
-      ]
-    }
-  };
-
-  return mockDrivers[driverId as keyof typeof mockDrivers] || null;
-}
+// Health report endpoint - fetches real data from health_reports table
 
 // GET /api/drivers/[id]/health-report - Get detailed health report for a driver
 export async function GET(
@@ -150,15 +26,6 @@ export async function GET(
       });
 
       if (!driver) {
-        // Try mock data if driver not found in database
-        const mockData = getMockHealthData(id);
-        if (mockData) {
-          return NextResponse.json({
-            success: true,
-            data: mockData,
-          });
-        }
-        
         return NextResponse.json(
           {
             success: false,
@@ -229,23 +96,14 @@ export async function GET(
 
       return NextResponse.json(response);
     } catch (dbError) {
-      console.warn('Database not available, using mock data for health report:', dbError);
-      
-      // Fallback to mock data
-      const mockData = getMockHealthData(id);
-      if (mockData) {
-        return NextResponse.json({
-          success: true,
-          data: mockData,
-        });
-      }
+      console.error('Database error fetching health report:', dbError);
       
       return NextResponse.json(
         {
           success: false,
-          error: 'Driver not found',
+          error: 'Database error occurred',
         },
-        { status: 404 }
+        { status: 500 }
       );
     }
   } catch (error) {

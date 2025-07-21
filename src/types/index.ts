@@ -17,6 +17,18 @@ export type {
   UserRole,
 } from '@prisma/client';
 
+// Import types for internal use
+import type { 
+  Driver, 
+  HealthReport, 
+  Gender, 
+  RiskLevel, 
+  AttendanceStatus,
+  AttendanceRecord,
+  AlcoholDetection,
+  ObjectDetection
+} from '@prisma/client';
+
 // Extended types for API responses
 export interface DriverWithRelations extends Driver {
   healthReports: HealthReport[];
@@ -37,14 +49,14 @@ export interface DriverWithRelations extends Driver {
     drowsy_detected: number;
     sleeping_detected: number;
     mobile_use_detected: number;
-    eating_detected: number;
+    distracted_detected: number;
     drinking_detected: number;
     alcohol_img_url: string | null;
     smoking_img_url: string | null;
     drowsy_img_url: string | null;
     sleeping_img_url: string | null;
     mobile_use_img_url: string | null;
-    eating_img_url: string | null;
+    distracted_img_url: string | null;
     drinking_img_url: string | null;
   };
 }
@@ -53,6 +65,21 @@ export interface HealthReportWithDetails extends HealthReport {
   driver: Driver;
   alcoholDetections?: AlcoholDetection[];
   objectDetections?: ObjectDetection[];
+  // Additional health vitals fields from the API response
+  heart_rate?: string | null;
+  breathing_rate?: string | null;
+  oxygen_saturation?: string | null;
+  blood_pressure?: string | null;
+  stress_level?: string | null;
+  recovery_ability?: string | null;
+  hemoglobin?: string | null;
+  hba1c?: string | null;
+  hypertension_risk?: string | null;
+  diabetic_risk?: string | null;
+  heart_rate_conf_level?: string | null;
+  breathing_rate_conf_level?: string | null;
+  prq_conf_level?: string | null;
+  hrv_sdnn_conf_level?: string | null;
 }
 
 // Component props interfaces
@@ -91,7 +118,6 @@ export interface PaginatedResponse<T> {
 // Form types
 export interface CreateDriverData {
   name: string;
-  email: string;
   phone: string;
   age: number;
   gender: Gender;
@@ -128,4 +154,25 @@ export interface AttendanceFilter {
   };
   status?: AttendanceStatus;
   driverId?: string;
+}
+
+// Notification types
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  timestamp: Date;
+  read: boolean;
+  driverId?: string;
+  actionUrl?: string;
+}
+
+export interface NotificationContextType {
+  notifications: Notification[];
+  unreadCount: number;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
+  removeNotification: (id: string) => void;
 }

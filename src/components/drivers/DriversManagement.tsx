@@ -16,18 +16,15 @@ import {
   ChevronDown,
   X,
   User,
-  Mail,
   Phone,
-  Calendar,
-  MapPin,
   Activity,
   AlertTriangle,
   CheckCircle,
-  Upload,
   Camera,
 } from 'lucide-react';
 import { DriverWithRelations, CreateDriverData, DriversFilter, Gender, RiskLevel } from '@/types';
 import HealthReportModal from '@/components/modals/HealthReportModal';
+import SuccessModal from '@/components/modals/SuccessModal';
 
 export default function DriversManagement() {
   const [drivers, setDrivers] = useState<DriverWithRelations[]>([]);
@@ -37,8 +34,10 @@ export default function DriversManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showHealthModal, setShowHealthModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [editingDriver, setEditingDriver] = useState<DriverWithRelations | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [successMessage, setSuccessMessage] = useState({ title: '', message: '' });
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,7 +56,6 @@ export default function DriversManagement() {
   // Form data
   const [formData, setFormData] = useState<CreateDriverData>({
     name: '',
-    email: '',
     phone: '',
     age: 25,
     gender: 'MALE',
@@ -113,10 +111,8 @@ export default function DriversManagement() {
     const errors: Partial<CreateDriverData> = {};
 
     if (!data.name.trim()) errors.name = 'Name is required';
-    if (!data.email.trim()) errors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(data.email)) errors.email = 'Invalid email format';
     if (!data.phone.trim()) errors.phone = 'Phone is required';
-    if (data.age < 18 || data.age > 70) errors.age = 'Age must be between 18 and 70';
+    if (data.age < 18 || data.age > 70) errors.age = 'Age must be between 18 and 70' as any;
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -180,6 +176,15 @@ export default function DriversManagement() {
 
       await fetchDrivers();
       handleCloseModal();
+      
+      // Show success modal
+      setSuccessMessage({
+        title: editingDriver ? 'Driver Updated' : 'Driver Added',
+        message: editingDriver 
+          ? `${formData.name} has been successfully updated in the system.`
+          : `${formData.name} has been successfully added to the system.`
+      });
+      setShowSuccessModal(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -207,7 +212,6 @@ export default function DriversManagement() {
     setEditingDriver(driver);
     setFormData({
       name: driver.name,
-      email: driver.email,
       phone: driver.phone,
       age: driver.age,
       gender: driver.gender,
@@ -249,7 +253,6 @@ export default function DriversManagement() {
     setEditingDriver(null);
     setFormData({
       name: '',
-      email: '',
       phone: '',
       age: 25,
       gender: 'MALE',
@@ -490,10 +493,7 @@ export default function DriversManagement() {
                   Contact
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Health Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Attendance
+                  Age
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -524,12 +524,7 @@ export default function DriversManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="animate-pulse">
-                        <div className="h-6 w-16 bg-gray-200 rounded-full"></div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="animate-pulse">
-                        <div className="h-4 w-20 bg-gray-200 rounded"></div>
+                        <div className="h-4 w-12 bg-gray-200 rounded"></div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -543,15 +538,12 @@ export default function DriversManagement() {
                 ))
               ) : drivers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                     No drivers found
                   </td>
                 </tr>
               ) : (
                 drivers.map((driver) => {
-                  const attendanceStatus = getAttendanceStatus(driver.attendanceRecords);
-                  const latestReport = driver.healthReports[0];
-                  
                   return (
                     <tr key={driver.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -571,35 +563,20 @@ export default function DriversManagement() {
                             <div className="text-sm font-medium text-gray-900">{driver.name}</div>
                             <div className="text-sm text-gray-500">{driver.driverId}</div>
                             <div className="text-xs text-gray-400">
-                              {driver.age} years, {driver.gender}
+                              {driver.gender}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2 text-sm text-gray-900">
-                            <Mail className="h-4 w-4 text-gray-400" />
-                            <span>{driver.email}</span>
-                          </div>
-                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <Phone className="h-4 w-4 text-gray-400" />
-                            <span>{driver.phone}</span>
-                          </div>
+                        <div className="flex items-center space-x-2 text-sm text-gray-900">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <span>{driver.phone}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {getRiskLevelBadge(latestReport?.riskLevel)}
-                        {latestReport && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Updated {format(new Date(latestReport.reportDate), 'MMM dd')}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-medium ${attendanceStatus.color}`}>
-                          {attendanceStatus.status}
-                        </span>
+                        <div className="text-sm text-gray-900">{driver.age}</div>
+                        <div className="text-xs text-gray-500">years</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
@@ -786,24 +763,6 @@ export default function DriversManagement() {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className={`w-full p-3 border rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.email ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter email address"
-                  />
-                  {formErrors.email && (
-                    <p className="text-red-500 text-sm mt-1">{formErrors.email}</p>
-                  )}
-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -920,7 +879,7 @@ export default function DriversManagement() {
                 </label>
                 <textarea
                   rows={3}
-                  value={formData.address}
+                  value={formData.address || ''}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter address"
@@ -958,6 +917,14 @@ export default function DriversManagement() {
           driverId={selectedDriver}
         />
       )}
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title={successMessage.title}
+        message={successMessage.message}
+      />
     </div>
   );
 }

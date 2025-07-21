@@ -11,7 +11,12 @@ function processDetectionResults(driver: any) {
   
   // Process profile photo URL
   if (processedDriver.profilePhoto) {
-    processedDriver.profilePhotoUrl = `${DETECTION_IMAGE_BASE_URL}/driver_images/${processedDriver.profilePhoto}`;
+    // Check if the profile photo is already a full URL (starts with http:// or https://)
+    if (processedDriver.profilePhoto.startsWith('http://') || processedDriver.profilePhoto.startsWith('https://')) {
+      processedDriver.profilePhotoUrl = processedDriver.profilePhoto;
+    } else {
+      processedDriver.profilePhotoUrl = `${DETECTION_IMAGE_BASE_URL}/driver_images/${processedDriver.profilePhoto}`;
+    }
   }
   
   // Process alcohol detection results
@@ -94,27 +99,14 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const driver = await prisma.driver.findUnique({
-      where: { id },
-      include: {
-        healthReports: {
-          orderBy: { reportDate: 'desc' },
-          take: 10,
-        },
-        attendanceRecords: {
-          orderBy: { date: 'desc' },
-          take: 30,
-        },
-        alcoholDetections: {
-          orderBy: { detectedAt: 'desc' },
-          take: 20,
-        },
-        objectDetections: {
-          orderBy: { detectedAt: 'desc' },
-          take: 20,
-        },
-      },
-    });
+    // Get driver using raw SQL to avoid email column error
+    const driverResult = await prisma.$queryRawUnsafe(`
+      SELECT id, driverId, name, phone, age, gender, address, profilePhoto, dateOfBirth, weight, height, createdAt, updatedAt
+      FROM drivers 
+      WHERE id = ?
+    `, id);
+    
+    const driver = (driverResult as any[])[0];
 
     if (!driver) {
       return NextResponse.json(
@@ -126,8 +118,46 @@ export async function GET(
       );
     }
 
+    // Get related data using raw SQL queries
+    const healthReports = await prisma.$queryRawUnsafe(`
+      SELECT * FROM health_reports 
+      WHERE driverId = ? 
+      ORDER BY reportDate DESC 
+      LIMIT 10
+    `, id);
+
+    const attendanceRecords = await prisma.$queryRawUnsafe(`
+      SELECT * FROM attendance_records 
+      WHERE driverId = ? 
+      ORDER BY date DESC 
+      LIMIT 30
+    `, id);
+
+    const alcoholDetections = await prisma.$queryRawUnsafe(`
+      SELECT * FROM alcohol_detections 
+      WHERE driverId = ? 
+      ORDER BY detectedAt DESC 
+      LIMIT 20
+    `, id);
+
+    const objectDetections = await prisma.$queryRawUnsafe(`
+      SELECT * FROM object_detections 
+      WHERE driverId = ? 
+      ORDER BY detectedAt DESC 
+      LIMIT 20
+    `, id);
+
+    // Combine the results
+    const driverWithRelations = {
+      ...driver,
+      healthReports,
+      attendanceRecords,
+      alcoholDetections,
+      objectDetections,
+    };
+
     // Process detection results and add image URLs
-    let processedDriver = processDetectionResults(driver);
+    let processedDriver = processDetectionResults(driverWithRelations);
     
     // Fetch latest monitoring session data from database
     let latestMonitoringSession = null;
@@ -172,7 +202,7 @@ export async function GET(
             drowsy_detected = 1 OR 
             sleeping_detected = 1 OR 
             mobile_use_detected = 1 OR 
-            eating_detected = 1 OR 
+            distracted_detected = 1 OR 
             drinking_detected = 1
           )
         ORDER BY startTime DESC
@@ -192,28 +222,42 @@ export async function GET(
           drowsy_detected: session.drowsy_detected || 0,
           sleeping_detected: session.sleeping_detected || 0,
           mobile_use_detected: session.mobile_use_detected || 0,
-          eating_detected: session.eating_detected || 0,
+          distracted_detected: session.distracted_detected || 0,
           drinking_detected: session.drinking_detected || 0,
           alcohol_img_url: session.alcohol_detected === 1 && session.alcohol_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.alcohol_img}` 
+            ? (session.alcohol_img.startsWith('http://') || session.alcohol_img.startsWith('https://') 
+               ? session.alcohol_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.alcohol_img}`) 
             : null,
           smoking_img_url: session.smoking_detected === 1 && session.smoking_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.smoking_img}` 
+            ? (session.smoking_img.startsWith('http://') || session.smoking_img.startsWith('https://') 
+               ? session.smoking_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.smoking_img}`) 
             : null,
           drowsy_img_url: session.drowsy_detected === 1 && session.drowsy_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.drowsy_img}` 
+            ? (session.drowsy_img.startsWith('http://') || session.drowsy_img.startsWith('https://') 
+               ? session.drowsy_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.drowsy_img}`) 
             : null,
           sleeping_img_url: session.sleeping_detected === 1 && session.sleeping_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.sleeping_img}` 
+            ? (session.sleeping_img.startsWith('http://') || session.sleeping_img.startsWith('https://') 
+               ? session.sleeping_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.sleeping_img}`) 
             : null,
           mobile_use_img_url: session.mobile_use_detected === 1 && session.mobile_use_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.mobile_use_img}` 
+            ? (session.mobile_use_img.startsWith('http://') || session.mobile_use_img.startsWith('https://') 
+               ? session.mobile_use_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.mobile_use_img}`) 
             : null,
-          eating_img_url: session.eating_detected === 1 && session.eating_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.eating_img}` 
+          distracted_img_url: session.distracted_detected === 1 && session.distracted_img 
+            ? (session.distracted_img.startsWith('http://') || session.distracted_img.startsWith('https://') 
+               ? session.distracted_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.distracted_img}`) 
             : null,
           drinking_img_url: session.drinking_detected === 1 && session.drinking_img 
-            ? `${DETECTION_IMAGE_BASE_URL}/${session.drinking_img}` 
+            ? (session.drinking_img.startsWith('http://') || session.drinking_img.startsWith('https://') 
+               ? session.drinking_img 
+               : `${DETECTION_IMAGE_BASE_URL}/${session.drinking_img}`) 
             : null
         };
         
@@ -234,14 +278,14 @@ export async function GET(
         drowsy_detected: 0,
         sleeping_detected: 0,
         mobile_use_detected: 0,
-        eating_detected: 0,
+        distracted_detected: 0,
         drinking_detected: 0,
         alcohol_img_url: null,
         smoking_img_url: null,
         drowsy_img_url: null,
         sleeping_img_url: null,
         mobile_use_img_url: null,
-        eating_img_url: null,
+        distracted_img_url: null,
         drinking_img_url: null
       }
     };
@@ -272,10 +316,12 @@ export async function PUT(
   try {
     const { id } = await params;
     
-    // Check if driver exists
-    const existingDriver = await prisma.driver.findUnique({
-      where: { id },
-    });
+    // Check if driver exists using raw SQL
+    const existingDriverResult = await prisma.$queryRawUnsafe(`
+      SELECT id, driverId, phone FROM drivers WHERE id = ?
+    `, id);
+    
+    const existingDriver = (existingDriverResult as any[])[0];
 
     if (!existingDriver) {
       return NextResponse.json(
@@ -298,7 +344,6 @@ export async function PUT(
       // Extract form fields
       data = {};
       if (formData.get('name')) data.name = formData.get('name') as string;
-      if (formData.get('email')) data.email = formData.get('email') as string;
       if (formData.get('phone')) data.phone = formData.get('phone') as string;
       if (formData.get('age')) data.age = parseInt(formData.get('age') as string);
       if (formData.get('gender')) data.gender = formData.get('gender') as any;
@@ -327,51 +372,97 @@ export async function PUT(
       data = body;
     }
 
-    // Check if email is being updated and if it already exists
-    if (data.email && data.email !== existingDriver.email) {
-      const emailExists = await prisma.driver.findUnique({
-        where: { email: data.email },
-      });
+    // Check if phone is being updated and if it already exists
+    if (data.phone && data.phone !== existingDriver.phone) {
+      const phoneExistsResult = await prisma.$queryRawUnsafe(`
+        SELECT COUNT(*) as count FROM drivers WHERE phone = ?
+      `, data.phone);
+      
+      const phoneExists = Number((phoneExistsResult as any[])[0]?.count || 0) > 0;
 
-      if (emailExists) {
+      if (phoneExists) {
         return NextResponse.json(
           {
             success: false,
-            error: 'A driver with this email already exists',
+            error: 'A driver with this phone number already exists',
           },
           { status: 409 }
         );
       }
     }
 
-    // Update driver
+    // Update driver using raw SQL
     const updatedData: any = { ...data };
     if (data.dateOfBirth) {
       updatedData.dateOfBirth = new Date(data.dateOfBirth);
     }
 
-    const driver = await prisma.driver.update({
-      where: { id },
-      data: updatedData,
-      include: {
-        healthReports: {
-          orderBy: { reportDate: 'desc' },
-          take: 1,
-        },
-        attendanceRecords: {
-          orderBy: { date: 'desc' },
-          take: 5,
-        },
-        alcoholDetections: {
-          orderBy: { detectedAt: 'desc' },
-          take: 3,
-        },
-        objectDetections: {
-          orderBy: { detectedAt: 'desc' },
-          take: 3,
-        },
-      },
-    });
+    // Build dynamic update query
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (updatedData.name) {
+      updateFields.push('name = ?');
+      updateValues.push(updatedData.name);
+    }
+    if (updatedData.phone) {
+      updateFields.push('phone = ?');
+      updateValues.push(updatedData.phone);
+    }
+    if (updatedData.age !== undefined) {
+      updateFields.push('age = ?');
+      updateValues.push(updatedData.age);
+    }
+    if (updatedData.gender) {
+      updateFields.push('gender = ?');
+      updateValues.push(updatedData.gender);
+    }
+    if (updatedData.address !== undefined) {
+      updateFields.push('address = ?');
+      updateValues.push(updatedData.address);
+    }
+    if (updatedData.profilePhoto !== undefined) {
+      updateFields.push('profilePhoto = ?');
+      updateValues.push(updatedData.profilePhoto);
+    }
+    if (updatedData.dateOfBirth !== undefined) {
+      updateFields.push('dateOfBirth = ?');
+      updateValues.push(updatedData.dateOfBirth);
+    }
+    if (updatedData.weight !== undefined) {
+      updateFields.push('weight = ?');
+      updateValues.push(updatedData.weight);
+    }
+    if (updatedData.height !== undefined) {
+      updateFields.push('height = ?');
+      updateValues.push(updatedData.height);
+    }
+    
+    // Always update updatedAt
+    updateFields.push('updatedAt = ?');
+    updateValues.push(new Date());
+    
+    // Add id for WHERE clause
+    updateValues.push(id);
+
+    if (updateFields.length > 1) { // More than just updatedAt
+      const updateQuery = `
+        UPDATE drivers 
+        SET ${updateFields.join(', ')} 
+        WHERE id = ?
+      `;
+      
+      await prisma.$executeRawUnsafe(updateQuery, ...updateValues);
+    }
+
+    // Fetch the updated driver
+    const driverResult = await prisma.$queryRawUnsafe(`
+      SELECT id, driverId, name, phone, age, gender, address, profilePhoto, dateOfBirth, weight, height, createdAt, updatedAt
+      FROM drivers 
+      WHERE id = ?
+    `, id);
+    
+    const driver = (driverResult as any[])[0];
 
     const response: ApiResponse<any> = {
       success: true,
@@ -400,10 +491,12 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Check if driver exists
-    const existingDriver = await prisma.driver.findUnique({
-      where: { id },
-    });
+    // Check if driver exists using raw SQL
+    const existingDriverResult = await prisma.$queryRawUnsafe(`
+      SELECT id FROM drivers WHERE id = ?
+    `, id);
+    
+    const existingDriver = (existingDriverResult as any[])[0];
 
     if (!existingDriver) {
       return NextResponse.json(
@@ -415,10 +508,15 @@ export async function DELETE(
       );
     }
 
-    // Delete driver (cascade will handle related records)
-    await prisma.driver.delete({
-      where: { id },
-    });
+    // Delete related records first to avoid foreign key constraints
+    await prisma.$executeRawUnsafe(`DELETE FROM health_reports WHERE driverId = ?`, id);
+    await prisma.$executeRawUnsafe(`DELETE FROM attendance_records WHERE driverId = ?`, id);
+    await prisma.$executeRawUnsafe(`DELETE FROM alcohol_detections WHERE driverId = ?`, id);
+    await prisma.$executeRawUnsafe(`DELETE FROM object_detections WHERE driverId = ?`, id);
+    await prisma.$executeRawUnsafe(`DELETE FROM monitoring_sessions WHERE driverId = ?`, id);
+    
+    // Delete driver using raw SQL
+    await prisma.$executeRawUnsafe(`DELETE FROM drivers WHERE id = ?`, id);
 
     const response: ApiResponse<null> = {
       success: true,

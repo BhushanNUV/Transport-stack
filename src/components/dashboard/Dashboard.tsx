@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Users, 
   Heart, 
@@ -24,6 +25,12 @@ interface DashboardStats {
   attendanceRate: number;
   avgHealthScore: number;
   criticalCases: number;
+  changes: {
+    driversThisMonth: number;
+    presentFromYesterday: number;
+    healthAlertsFromLastWeek: number;
+    attendanceRateFromLastWeek: number;
+  };
 }
 
 interface RecentActivity {
@@ -35,6 +42,7 @@ interface RecentActivity {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats>({
     totalDrivers: 0,
     activeToday: 0,
@@ -42,6 +50,12 @@ export default function Dashboard() {
     attendanceRate: 0,
     avgHealthScore: 0,
     criticalCases: 0,
+    changes: {
+      driversThisMonth: 0,
+      presentFromYesterday: 0,
+      healthAlertsFromLastWeek: 0,
+      attendanceRateFromLastWeek: 0,
+    },
   });
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +99,12 @@ export default function Dashboard() {
           attendanceRate: 0,
           avgHealthScore: 0,
           criticalCases: 0,
+          changes: {
+            driversThisMonth: 0,
+            presentFromYesterday: 0,
+            healthAlertsFromLastWeek: 0,
+            attendanceRateFromLastWeek: 0,
+          },
         });
         setRecentActivity([]);
       }
@@ -96,6 +116,10 @@ export default function Dashboard() {
 
   const handleRefresh = () => {
     fetchDashboardData(true);
+  };
+
+  const handleCardClick = (route: string) => {
+    router.push(route);
   };
 
   const getActivityIcon = (type: string) => {
@@ -164,15 +188,28 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300">
+        <div 
+          onClick={() => handleCardClick('/drivers')}
+          className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm font-medium text-slate-600 mb-2">Total Drivers</p>
               <p className="text-3xl font-bold text-slate-900 mb-3">{stats.totalDrivers}</p>
               <div className="flex items-center text-sm">
-                <div className="flex items-center text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                  <TrendingUp className="h-4 w-4 mr-1" />
-                  <span className="font-medium">+2 this month</span>
+                <div className={`flex items-center px-2 py-1 rounded-full ${
+                  stats.changes.driversThisMonth >= 0 
+                    ? 'text-emerald-600 bg-emerald-50' 
+                    : 'text-red-600 bg-red-50'
+                }`}>
+                  {stats.changes.driversThisMonth >= 0 ? (
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 mr-1" />
+                  )}
+                  <span className="font-medium">
+                    {stats.changes.driversThisMonth >= 0 ? '+' : ''}{stats.changes.driversThisMonth} this month
+                  </span>
                 </div>
               </div>
             </div>
@@ -182,15 +219,28 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300">
+        <div 
+          onClick={() => handleCardClick('/attendance')}
+          className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-sm font-medium text-slate-600 mb-2">Active Today</p>
+              <p className="text-sm font-medium text-slate-600 mb-2">Present Today</p>
               <p className="text-3xl font-bold text-slate-900 mb-3">{stats.activeToday}</p>
               <div className="flex items-center text-sm">
-                <div className="flex items-center text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                  <TrendingUp className="h-4 w-4 mr-1" />
-                  <span className="font-medium">+5 from yesterday</span>
+                <div className={`flex items-center px-2 py-1 rounded-full ${
+                  stats.changes.presentFromYesterday >= 0 
+                    ? 'text-emerald-600 bg-emerald-50' 
+                    : 'text-red-600 bg-red-50'
+                }`}>
+                  {stats.changes.presentFromYesterday >= 0 ? (
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 mr-1" />
+                  )}
+                  <span className="font-medium">
+                    {stats.changes.presentFromYesterday >= 0 ? '+' : ''}{stats.changes.presentFromYesterday} from yesterday
+                  </span>
                 </div>
               </div>
             </div>
@@ -200,15 +250,28 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300">
+        <div 
+          onClick={() => handleCardClick('/health')}
+          className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm font-medium text-slate-600 mb-2">Health Alerts</p>
               <p className="text-3xl font-bold text-slate-900 mb-3">{stats.healthAlerts}</p>
               <div className="flex items-center text-sm">
-                <div className="flex items-center text-rose-600 bg-rose-50 px-2 py-1 rounded-full">
-                  <TrendingDown className="h-4 w-4 mr-1" />
-                  <span className="font-medium">-1 from yesterday</span>
+                <div className={`flex items-center px-2 py-1 rounded-full ${
+                  stats.changes.healthAlertsFromLastWeek <= 0 
+                    ? 'text-emerald-600 bg-emerald-50' 
+                    : 'text-rose-600 bg-rose-50'
+                }`}>
+                  {stats.changes.healthAlertsFromLastWeek <= 0 ? (
+                    <TrendingDown className="h-4 w-4 mr-1" />
+                  ) : (
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                  )}
+                  <span className="font-medium">
+                    {stats.changes.healthAlertsFromLastWeek > 0 ? '+' : ''}{stats.changes.healthAlertsFromLastWeek} from last week
+                  </span>
                 </div>
               </div>
             </div>
@@ -218,15 +281,28 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300">
+        <div 
+          onClick={() => handleCardClick('/attendance')}
+          className="group bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm font-medium text-slate-600 mb-2">Attendance Rate</p>
               <p className="text-3xl font-bold text-slate-900 mb-3">{stats.attendanceRate}%</p>
               <div className="flex items-center text-sm">
-                <div className="flex items-center text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                  <TrendingUp className="h-4 w-4 mr-1" />
-                  <span className="font-medium">+2.1% this week</span>
+                <div className={`flex items-center px-2 py-1 rounded-full ${
+                  stats.changes.attendanceRateFromLastWeek >= 0 
+                    ? 'text-emerald-600 bg-emerald-50' 
+                    : 'text-red-600 bg-red-50'
+                }`}>
+                  {stats.changes.attendanceRateFromLastWeek >= 0 ? (
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 mr-1" />
+                  )}
+                  <span className="font-medium">
+                    {stats.changes.attendanceRateFromLastWeek >= 0 ? '+' : ''}{stats.changes.attendanceRateFromLastWeek.toFixed(1)}% this week
+                  </span>
                 </div>
               </div>
             </div>
