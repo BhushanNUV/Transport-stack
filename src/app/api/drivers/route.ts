@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { CreateDriverData, ApiResponse, PaginatedResponse } from '@/types';
+import { uploadImageToGCS, deleteImageFromGCS } from '@/lib/gcs';
 
 // Base URL for detection images from environment variable
 const DETECTION_IMAGE_BASE_URL = process.env.FLASK_API_BASE_URL || 'http://localhost:5000';
@@ -333,44 +334,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function to upload image to external driver-images API
-async function uploadImageToExternalAPI(file: File, driverId: string): Promise<string | null> {
+// Helper function to upload driver image
+async function uploadDriverImage(file: File, driverId: string): Promise<string | null> {
   try {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       throw new Error('Invalid file type. Only images are allowed.');
     }
 
-    // Convert to base64
-    const buffer = await file.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
+    // Upload to GCS
+    const publicUrl = await uploadImageToGCS(file, 'driver_images');
     
-    // Use original filename directly
-    const filename = file.name;
-
-    // Upload to external API
-    const response = await fetch(`${process.env.FLASK_API_BASE_URL || 'http://localhost:5000'}/api/driver-images`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image: base64,
-        filename: filename,
-        driver_id: driverId
-      }),
-    });
-
-    const result = await response.json();
-    
-    if (result.success) {
-      // Return the filename/URL from the Flask API response
-      return result.filename;
-    } else {
-      throw new Error(result.error || 'Failed to upload image');
-    }
+    return publicUrl;
   } catch (error) {
-    console.error('Error uploading image to external API:', error);
+    console.error('Error uploading image to GCS:', error);
     return null;
   }
 }
@@ -472,7 +449,7 @@ export async function POST(request: NextRequest) {
 
     // Upload profile photo to external API if provided
     if (imageFile && imageFile.size > 0) {
-      profilePhoto = await uploadImageToExternalAPI(imageFile, driverId);
+      profilePhoto = await uploadDriverImage(imageFile, driverId);
     }
 
     // Create driver using raw SQL to avoid schema conflicts
