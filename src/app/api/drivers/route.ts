@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { CreateDriverData, ApiResponse, PaginatedResponse } from '@/types';
-import { uploadImageToGCS, deleteImageFromGCS } from '@/lib/gcs';
+import { uploadImageToGCS } from '@/lib/gcs';
 
 // Base URL for detection images from environment variable
 const DETECTION_IMAGE_BASE_URL = process.env.FLASK_API_BASE_URL || 'http://localhost:5000';
@@ -334,15 +334,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function to upload driver image
-async function uploadDriverImage(file: File, driverId: string): Promise<string | null> {
+// Helper function to upload driver image to GCS
+async function uploadDriverImageToGCS(file: File, driverId: string): Promise<string | null> {
   try {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       throw new Error('Invalid file type. Only images are allowed.');
     }
 
-    // Upload to GCS
+    // Upload to GCS and get the full public URL
     const publicUrl = await uploadImageToGCS(file, 'driver_images');
     
     return publicUrl;
@@ -449,7 +449,7 @@ export async function POST(request: NextRequest) {
 
     // Upload profile photo to external API if provided
     if (imageFile && imageFile.size > 0) {
-      profilePhoto = await uploadDriverImage(imageFile, driverId);
+      profilePhoto = await uploadDriverImageToGCS(imageFile, driverId);
     }
 
     // Create driver using raw SQL to avoid schema conflicts

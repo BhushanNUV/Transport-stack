@@ -50,15 +50,15 @@ function processDetectionResults(driver: any) {
   return processedDriver;
 }
 
-// Helper function to upload driver image
-async function uploadDriverImage(file: File, driverId: string): Promise<string | null> {
+// Helper function to upload driver image to GCS
+async function uploadDriverImageToGCS(file: File, driverId: string): Promise<string | null> {
   try {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       throw new Error('Invalid file type. Only images are allowed.');
     }
 
-    // Upload to GCS
+    // Upload to GCS and get the full public URL
     const publicUrl = await uploadImageToGCS(file, 'driver_images');
     
     return publicUrl;
@@ -337,7 +337,7 @@ export async function PUT(
           await deleteImageFromGCS(existingDriver.profilePhoto);
         }
         
-        profilePhoto = await uploadDriverImage(imageFile, existingDriver.driverId);
+        profilePhoto = await uploadDriverImageToGCS(imageFile, existingDriver.driverId);
         if (profilePhoto) {
           data.profilePhoto = profilePhoto;
         }

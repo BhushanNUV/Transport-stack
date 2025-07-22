@@ -20,10 +20,10 @@ try {
   } else {
     // Try multiple paths for the credentials file
     const possiblePaths = [
-      path.join(process.cwd(), 'numeric-ocean-454912-f4-304bce751e9d.json'),
-      path.join(__dirname, '../../numeric-ocean-454912-f4-304bce751e9d.json'),
-      '/home/mukesh/Transport-stack/numeric-ocean-454912-f4-304bce751e9d.json',
-      process.env.GCS_CREDENTIALS_PATH || ''
+      process.env.GCS_CREDENTIALS_PATH || '',
+      path.join(process.cwd(), 'numeric-ocean-454912-f4-9869134da8d4.json'),
+      path.join(__dirname, '../../numeric-ocean-454912-f4-9869134da8d4.json'),
+      '/home/mukesh/Transport-stack/numeric-ocean-454912-f4-9869134da8d4.json'
     ];
 
     let credentialsPath = '';
