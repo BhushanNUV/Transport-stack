@@ -17,9 +17,11 @@ import {
   BarChart3,
   Clock,
   ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { HealthReportWithDetails, RiskLevel, StressLevel } from '@/types';
 import HealthReportModal from '@/components/modals/HealthReportModal';
+import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
 
 interface HealthStats {
   totalReports: number;
@@ -58,9 +60,84 @@ export default function HealthReportsManagement() {
     trendsUp: false,
   });
 
+  // Sorting
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
   useEffect(() => {
     fetchHealthReports();
   }, [currentPage, filters]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const sortedReports = [...healthReports].sort((a, b) => {
+    if (!sortField) return 0;
+
+    let aValue: any;
+    let bValue: any;
+
+    // Handle nested properties and different field names
+    switch (sortField) {
+      case 'driverName':
+        aValue = a.driver.name;
+        bValue = b.driver.name;
+        break;
+      case 'reportDate':
+        aValue = new Date(a.reportDate).getTime();
+        bValue = new Date(b.reportDate).getTime();
+        break;
+      case 'heartRate':
+        aValue = a.heart_rate || a.heartRate || 0;
+        bValue = b.heart_rate || b.heartRate || 0;
+        break;
+      case 'breathingRate':
+        aValue = a.breathing_rate || 0;
+        bValue = b.breathing_rate || 0;
+        break;
+      case 'oxygenSaturation':
+        aValue = a.oxygen_saturation || 0;
+        bValue = b.oxygen_saturation || 0;
+        break;
+      case 'stressLevel':
+        const stressOrder = { LOW: 1, NORMAL: 2, MILD: 3, HIGH: 4, VERY_HIGH: 5 };
+        aValue = stressOrder[a.stress_level || a.stressLevel || 'NORMAL'] || 2;
+        bValue = stressOrder[b.stress_level || b.stressLevel || 'NORMAL'] || 2;
+        break;
+      case 'riskLevel':
+        const riskOrder = { NORMAL: 1, LOW: 2, MEDIUM: 3, HIGH: 4, CRITICAL: 5 };
+        aValue = riskOrder[a.riskLevel] || 1;
+        bValue = riskOrder[b.riskLevel] || 1;
+        break;
+      default:
+        return 0;
+    }
+
+    // Handle null/undefined values
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+
+    // Sort logic
+    if (typeof aValue === 'string') {
+      return sortOrder === 'asc' 
+        ? aValue.localeCompare(bValue) 
+        : bValue.localeCompare(aValue);
+    }
+
+    if (typeof aValue === 'number') {
+      return sortOrder === 'asc' 
+        ? aValue - bValue 
+        : bValue - aValue;
+    }
+
+    return 0;
+  });
 
   const fetchHealthReports = async () => {
     setLoading(true);
@@ -149,7 +226,49 @@ export default function HealthReportsManagement() {
   };
 
   const handleExport = () => {
-    console.log('Exporting health reports...');
+    try {
+      // Define columns for Excel export
+      const columns: ExcelColumn[] = [
+        { header: 'Driver ID', key: 'driver.driverId', width: 15, type: 'string' },
+        { header: 'Driver Name', key: 'driver.name', width: 20 },
+        { header: 'Report Date', key: 'reportDate', width: 20, type: 'date' },
+        { header: 'Blood Pressure', key: 'blood_pressure', width: 15, type: 'string' },
+        { header: 'Heart Rate (BPM)', key: 'heart_rate', width: 15, type: 'string' },
+        { header: 'Breathing Rate', key: 'breathing_rate', width: 15, type: 'string' },
+        { header: 'Oxygen Saturation (%)', key: 'oxygen_saturation', width: 20, type: 'string' },
+        { header: 'Stress Level', key: 'stress_level', width: 15 },
+        { header: 'Risk Level', key: 'riskLevel', width: 15 },
+        { header: 'Hemoglobin', key: 'hemoglobin', width: 15, type: 'string' },
+        { header: 'HbA1c', key: 'hba1c', width: 15, type: 'string' },
+        { header: 'Hypertension Risk', key: 'hypertension_risk', width: 18 },
+        { header: 'Diabetic Risk', key: 'diabetic_risk', width: 18 },
+        { header: 'Notes', key: 'notes', width: 30 },
+      ];
+
+      // Format data for export
+      const exportData = sortedReports.map(report => ({
+        ...report,
+        blood_pressure: report.blood_pressure || 
+          (report.bloodPressureHigh && report.bloodPressureLow 
+            ? `${report.bloodPressureHigh}/${report.bloodPressureLow}`
+            : 'N/A'
+          ),
+        heart_rate: report.heart_rate || report.heartRate || 'N/A',
+        breathing_rate: report.breathing_rate || 'N/A',
+        oxygen_saturation: report.oxygen_saturation || 'N/A',
+        stress_level: (report.stress_level || report.stressLevel || 'N/A').replace('_', ' '),
+      }));
+
+      exportToExcel({
+        filename: 'health_reports',
+        sheetName: 'Health Reports',
+        columns,
+        data: exportData,
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
 
@@ -243,14 +362,14 @@ export default function HealthReportsManagement() {
       {/* Filters */}
       <div className="bg-white p-6 rounded-lg border border-gray-200">
         <div className="flex items-center space-x-4 mb-4">
-          <div className="flex-1 relative">
-            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+          <div className="flex-1 ">
+            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search by driver name or ID..."
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <button
@@ -332,28 +451,175 @@ export default function HealthReportsManagement() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Driver
+                  <button
+                    onClick={() => handleSort('driverName')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Driver</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'driverName' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'driverName' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Report Date
+                  <button
+                    onClick={() => handleSort('reportDate')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Report Date</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'reportDate' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'reportDate' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Blood Pressure
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Heart Rate
+                  <button
+                    onClick={() => handleSort('heartRate')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Heart Rate</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'heartRate' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'heartRate' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Breathing Rate
+                  <button
+                    onClick={() => handleSort('breathingRate')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Breathing Rate</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'breathingRate' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'breathingRate' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Oxygen Saturation
+                  <button
+                    onClick={() => handleSort('oxygenSaturation')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Oxygen Saturation</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'oxygenSaturation' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'oxygenSaturation' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stress Level
+                  <button
+                    onClick={() => handleSort('stressLevel')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Stress Level</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'stressLevel' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'stressLevel' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Risk Level
+                  <button
+                    onClick={() => handleSort('riskLevel')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Risk Level</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'riskLevel' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'riskLevel' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -399,14 +665,14 @@ export default function HealthReportsManagement() {
                     </td>
                   </tr>
                 ))
-              ) : healthReports.length === 0 ? (
+              ) : sortedReports.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                     No health reports found
                   </td>
                 </tr>
               ) : (
-                healthReports.map((report) => (
+                sortedReports.map((report) => (
                   <tr key={report.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">

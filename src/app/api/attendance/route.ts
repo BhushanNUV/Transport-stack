@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const status = searchParams.get('status') || '';
     const driverId = searchParams.get('driverId') || '';
+    const search = searchParams.get('search') || '';
 
     const skip = (page - 1) * limit;
 
@@ -39,12 +40,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all drivers using raw SQL to avoid email field error
-    const driversQuery = driverId 
-      ? `SELECT id, driverId, name, phone, age, gender, profilePhoto FROM drivers WHERE id = ?`
-      : `SELECT id, driverId, name, phone, age, gender, profilePhoto FROM drivers`;
+    let driversQuery = `SELECT id, driverId, name, phone, age, gender, profilePhoto FROM drivers`;
+    const queryParams: any[] = [];
+    const conditions: string[] = [];
     
-    const allDrivers = driverId 
-      ? await prisma.$queryRawUnsafe(driversQuery, driverId)
+    if (driverId) {
+      conditions.push('id = ?');
+      queryParams.push(driverId);
+    }
+    
+    if (search) {
+      conditions.push('(name LIKE ? OR driverId LIKE ? OR phone LIKE ?)');
+      queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    
+    if (conditions.length > 0) {
+      driversQuery += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    const allDrivers = queryParams.length > 0 
+      ? await prisma.$queryRawUnsafe(driversQuery, ...queryParams)
       : await prisma.$queryRawUnsafe(driversQuery);
 
     // Get monitoring sessions for each day in the date range
@@ -98,6 +113,15 @@ export async function GET(request: NextRequest) {
         const firstSession = firstSessionResult[0] || null;
         const lastSession = lastSessionResult[0] || null;
 
+        // Get total session count for this driver on this day
+        const sessionCountResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*) as count
+          FROM monitoring_sessions 
+          WHERE driverId = ${driver.id} 
+            AND DATE(startTime) = DATE(${dayStart})
+        `;
+        const sessionCount = Number(sessionCountResult[0]?.count || 0);
+
         // Determine status and times - simplified to just PRESENT/ABSENT
         let attendanceStatus = 'ABSENT';
         let checkInTime = null;
@@ -135,6 +159,7 @@ export async function GET(request: NextRequest) {
           createdAt: firstSession ? new Date(firstSession.startTime) : new Date(),
           updatedAt: lastSession ? new Date(lastSession.endTime!) : (firstSession ? new Date(firstSession.startTime) : new Date()),
           driver,
+          sessionCount,
         };
 
         attendanceRecords.push(attendanceRecord);

@@ -18,8 +18,17 @@ export async function GET(request: NextRequest) {
     // Note: For now using simplified query without filters to avoid SQL parameter issues
     // TODO: Add search, riskLevel, stressLevel, and dateRange filters when needed
 
+    // Build the WHERE clause
+    let whereClause = 'WHERE hr.id IS NOT NULL';
+    const queryParams: any[] = [];
+    
+    if (search) {
+      whereClause += ' AND (d.name LIKE ? OR d.driverId LIKE ?)';
+      queryParams.push(`%${search}%`, `%${search}%`);
+    }
+
     // Execute the main query to get health reports directly from health_reports table only
-    const healthReports = await prisma.$queryRaw`
+    const query = `
       SELECT 
         hr.id as health_report_id,
         hr.reportDate,
@@ -54,10 +63,14 @@ export async function GET(request: NextRequest) {
         d.height
       FROM health_reports hr
       INNER JOIN drivers d ON hr.driverId = d.id
-      WHERE hr.id IS NOT NULL
+      ${whereClause}
       ORDER BY hr.reportDate DESC
-      LIMIT ${limit} OFFSET ${skip}
-    ` as Array<{
+      LIMIT ? OFFSET ?
+    `;
+    
+    queryParams.push(limit, skip);
+    
+    const healthReports = await prisma.$queryRawUnsafe(query, ...queryParams) as Array<{
       health_report_id: string;
       reportDate: Date;
       bloodPressureHigh: number | null;
@@ -93,12 +106,15 @@ export async function GET(request: NextRequest) {
     }>;
 
     // Get total count from health_reports table
-    const totalResult = await prisma.$queryRaw`
+    const countQuery = `
       SELECT COUNT(DISTINCT hr.id) as total
       FROM health_reports hr
       INNER JOIN drivers d ON hr.driverId = d.id
-      WHERE hr.id IS NOT NULL
-    ` as Array<{ total: bigint }>;
+      ${whereClause}
+    `;
+    
+    const countParams = search ? [`%${search}%`, `%${search}%`] : [];
+    const totalResult = await prisma.$queryRawUnsafe(countQuery, ...countParams) as Array<{ total: bigint }>;
     const total = Number(totalResult[0]?.total || 0);
 
     // Transform the data to match the expected format

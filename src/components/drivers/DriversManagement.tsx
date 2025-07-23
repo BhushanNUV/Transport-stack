@@ -14,6 +14,9 @@ import {
   Trash2,
   Eye,
   ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   X,
   User,
   Phone,
@@ -21,10 +24,13 @@ import {
   AlertTriangle,
   CheckCircle,
   Camera,
+  Aperture,
 } from 'lucide-react';
 import { DriverWithRelations, CreateDriverData, DriversFilter, Gender, RiskLevel } from '@/types';
 import HealthReportModal from '@/components/modals/HealthReportModal';
 import SuccessModal from '@/components/modals/SuccessModal';
+import CameraModal from '@/components/modals/CameraModal';
+import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
 
 export default function DriversManagement() {
   const [drivers, setDrivers] = useState<DriverWithRelations[]>([]);
@@ -36,6 +42,7 @@ export default function DriversManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
   const [editingDriver, setEditingDriver] = useState<DriverWithRelations | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [successMessage, setSuccessMessage] = useState({ title: '', message: '' });
@@ -53,6 +60,10 @@ export default function DriversManagement() {
     ageRange: { min: 18, max: 70 },
     riskLevel: undefined,
   });
+
+  // Sorting
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Form data
   const [formData, setFormData] = useState<CreateDriverData>({
@@ -73,6 +84,47 @@ export default function DriversManagement() {
   useEffect(() => {
     fetchDrivers();
   }, [currentPage, filters]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const sortedDrivers = [...drivers].sort((a, b) => {
+    if (!sortField) return 0;
+
+    let aValue: any = a[sortField as keyof typeof a];
+    let bValue: any = b[sortField as keyof typeof b];
+
+    // Handle nested properties
+    if (sortField === 'driverId') {
+      aValue = a.driverId;
+      bValue = b.driverId;
+    }
+
+    // Handle null/undefined values
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+
+    // Sort logic
+    if (typeof aValue === 'string') {
+      return sortOrder === 'asc' 
+        ? aValue.localeCompare(bValue) 
+        : bValue.localeCompare(aValue);
+    }
+
+    if (typeof aValue === 'number') {
+      return sortOrder === 'asc' 
+        ? aValue - bValue 
+        : bValue - aValue;
+    }
+
+    return 0;
+  });
 
   const fetchDrivers = async () => {
     setLoading(true);
@@ -252,6 +304,19 @@ export default function DriversManagement() {
     }
   };
 
+  const handleCameraCapture = (imageBlob: Blob) => {
+    // Convert blob to File object
+    const file = new File([imageBlob], `driver_photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    setSelectedImage(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCloseModal = () => {
     setShowAddModal(false);
     setShowEditModal(false);
@@ -272,8 +337,33 @@ export default function DriversManagement() {
   };
 
   const handleExport = async () => {
-    // This would typically export to Excel
-    console.log('Exporting drivers data...');
+    try {
+      // Define columns for Excel export
+      const columns: ExcelColumn[] = [
+        { header: 'Driver ID', key: 'driverId', width: 15, type: 'string' },
+        { header: 'Name', key: 'name', width: 20 },
+        { header: 'Email', key: 'email', width: 25 },
+        { header: 'Phone', key: 'phone', width: 18, type: 'string' },
+        { header: 'Age', key: 'age', width: 10, type: 'number' },
+        { header: 'Gender', key: 'gender', width: 12 },
+        { header: 'Date of Birth', key: 'dateOfBirth', width: 15, type: 'date' },
+        { header: 'Address', key: 'address', width: 30 },
+        { header: 'Weight (kg)', key: 'weight', width: 12, type: 'number' },
+        { header: 'Height (cm)', key: 'height', width: 12, type: 'number' },
+        { header: 'Created At', key: 'createdAt', width: 20, type: 'date' },
+      ];
+
+      // Use filtered and sorted data for export
+      exportToExcel({
+        filename: 'drivers_report',
+        sheetName: 'Drivers',
+        columns,
+        data: sortedDrivers,
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   const getRiskLevelBadge = (riskLevel: string) => {
@@ -315,25 +405,25 @@ export default function DriversManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <Users className="h-8 w-8 text-blue-600" />
+          <Users className="h-8 w-8 text-blue-600 flex-shrink-0" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Drivers Management</h1>
-            <p className="text-gray-600">Manage driver profiles and health information</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Drivers Management</h1>
+            <p className="text-sm sm:text-base text-gray-600">Manage driver profiles and health information</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
           <button
             onClick={handleExport}
-            className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm sm:text-base"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span className="hidden sm:inline">Export</span>
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm sm:text-base"
           >
             <Plus className="h-4 w-4" />
             <span>Add Driver</span>
@@ -342,67 +432,67 @@ export default function DriversManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Drivers</p>
-              <p className="text-2xl font-bold text-gray-900">{totalDrivers}</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Total Drivers</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{totalDrivers}</p>
             </div>
-            <Users className="h-8 w-8 text-blue-600" />
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Active Today</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Active Today</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-600">
                 {drivers.filter(d => getAttendanceStatus(d.attendanceRecords).status === 'Present').length}
               </p>
             </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
+            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">High Risk</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">High Risk</p>
+              <p className="text-xl sm:text-2xl font-bold text-red-600">
                 {drivers.filter(d => d.healthReports[0]?.riskLevel === 'HIGH' || d.healthReports[0]?.riskLevel === 'CRITICAL').length}
               </p>
             </div>
-            <AlertTriangle className="h-8 w-8 text-red-600" />
+            <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Recent Alerts</p>
-              <p className="text-2xl font-bold text-orange-600">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Recent Alerts</p>
+              <p className="text-xl sm:text-2xl font-bold text-orange-600">
                 {drivers.reduce((acc, d) => acc + d.alcoholDetections.length + d.objectDetections.length, 0)}
               </p>
             </div>
-            <Activity className="h-8 w-8 text-orange-600" />
+            <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
           </div>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200">
-        <div className="flex items-center space-x-4 mb-4">
+      <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
           <div className="flex-1 relative">
-            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search drivers..."
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
             />
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            className="flex items-center justify-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 text-sm sm:text-base"
           >
             <Filter className="h-4 w-4" />
             <span>Filters</span>
@@ -485,20 +575,83 @@ export default function DriversManagement() {
         </div>
       )}
 
-      {/* Drivers Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Drivers Table - Desktop */}
+      <div className="hidden sm:block bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Driver
+                  <button
+                    onClick={() => handleSort('name')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Driver</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'name' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'name' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact
+                  <button
+                    onClick={() => handleSort('phone')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Contact</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'phone' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'phone' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Age
+                  <button
+                    onClick={() => handleSort('age')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Age</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'age' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'age' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -541,14 +694,14 @@ export default function DriversManagement() {
                     </td>
                   </tr>
                 ))
-              ) : drivers.length === 0 ? (
+              ) : sortedDrivers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                     No drivers found
                   </td>
                 </tr>
               ) : (
-                drivers.map((driver) => {
+                sortedDrivers.map((driver) => {
                   return (
                     <tr key={driver.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -676,11 +829,129 @@ export default function DriversManagement() {
         )}
       </div>
 
+      {/* Drivers List - Mobile */}
+      <div className="sm:hidden space-y-4">
+        {loading ? (
+          // Loading skeleton for mobile
+          Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="animate-pulse space-y-3">
+                <div className="flex items-center space-x-3">
+                  <div className="h-12 w-12 bg-gray-200 rounded-full"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                    <div className="h-3 w-24 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-gray-200 rounded"></div>
+                  <div className="h-3 w-3/4 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : sortedDrivers.length === 0 ? (
+          <div className="bg-white p-8 rounded-lg border border-gray-200 text-center">
+            <p className="text-gray-500">No drivers found</p>
+          </div>
+        ) : (
+          sortedDrivers.map((driver) => (
+            <div key={driver.id} className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {driver.profilePhotoUrl ? (
+                      <img
+                        src={driver.profilePhotoUrl}
+                        alt={driver.name}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6 text-blue-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">{driver.name}</h3>
+                    <p className="text-xs text-gray-500">{driver.driverId}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => {
+                      setSelectedDriver(driver.id);
+                      setShowHealthModal(true);
+                    }}
+                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md"
+                    title="View Health Report"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleEdit(driver)}
+                    className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md"
+                    title="Edit Driver"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(driver.id)}
+                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-md"
+                    title="Delete Driver"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Phone:</span>
+                  <span className="text-gray-900 font-medium">{driver.phone}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Age:</span>
+                  <span className="text-gray-900 font-medium">{driver.age} years</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Gender:</span>
+                  <span className="text-gray-900 font-medium">{driver.gender}</span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        
+        {/* Mobile Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between py-4">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center space-x-1 px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </button>
+            <span className="text-sm text-gray-700">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="flex items-center space-x-1 px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Add/Edit Driver Modal */}
       <Dialog.Root open={showAddModal || showEditModal} onOpenChange={handleCloseModal}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden z-50">
+          <Dialog.Content className="fixed inset-x-4 top-1/2 transform -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 bg-white rounded-lg shadow-xl max-w-2xl w-auto sm:w-full max-h-[90vh] overflow-hidden z-50">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <Dialog.Title className="text-xl font-semibold text-gray-900">
                 {editingDriver ? 'Edit Driver' : 'Add New Driver'}
@@ -698,7 +969,7 @@ export default function DriversManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Profile Photo
                 </label>
-                <div className="flex items-center space-x-6">
+                <div className="flex flex-col sm:flex-row items-center sm:space-x-6 space-y-4 sm:space-y-0">
                   <div className="relative">
                     {imagePreview ? (
                       <img
@@ -712,8 +983,8 @@ export default function DriversManagement() {
                       </div>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
+                  <div className="flex-1 w-full">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3">
                       <label
                         htmlFor="profile-photo"
                         className={`flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -729,6 +1000,15 @@ export default function DriversManagement() {
                           className="hidden"
                         />
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCameraModal(true)}
+                        disabled={submitting}
+                        className={`flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Aperture className="h-4 w-4" />
+                        <span>Capture Photo</span>
+                      </button>
                       {imagePreview && (
                         <button
                           type="button"
@@ -744,7 +1024,7 @@ export default function DriversManagement() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      JPG, PNG supported. Recommended: 400x400px
+                      JPG, PNG supported. Recommended: 400x400px. Use "Capture Photo" to take an instant photo.
                     </p>
                   </div>
                 </div>
@@ -941,6 +1221,13 @@ export default function DriversManagement() {
           driverId={selectedDriver}
         />
       )}
+
+      {/* Camera Modal */}
+      <CameraModal
+        isOpen={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        onCapture={handleCameraCapture}
+      />
 
       {/* Success Modal */}
       <SuccessModal

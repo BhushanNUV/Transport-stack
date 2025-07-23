@@ -154,6 +154,7 @@ export interface AttendanceFilter {
   };
   status?: AttendanceStatus;
   driverId?: string;
+  search?: string;
 }
 
 // Notification types

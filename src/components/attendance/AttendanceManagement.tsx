@@ -11,6 +11,8 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -22,9 +24,11 @@ import {
   Minus,
 } from 'lucide-react';
 import { AttendanceRecord, Driver, AttendanceStatus, AttendanceFilter } from '@/types';
+import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
 
 interface AttendanceWithDriver extends AttendanceRecord {
   driver: Driver;
+  sessionCount?: number;
 }
 
 interface AttendanceStats {
@@ -239,13 +243,74 @@ export default function AttendanceManagement() {
   const [filters, setFilters] = useState<AttendanceFilter>({
     status: undefined,
     driverId: undefined,
+    search: '',
   });
-  const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Sorting
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     fetchAttendanceData();
   }, [selectedDate, viewMode, filters]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const sortedRecords = [...attendanceRecords].sort((a, b) => {
+    if (!sortField) return 0;
+
+    let aValue: any;
+    let bValue: any;
+
+    switch (sortField) {
+      case 'driverName':
+        aValue = a.driver.name;
+        bValue = b.driver.name;
+        break;
+      case 'date':
+        aValue = new Date(a.date).getTime();
+        bValue = new Date(b.date).getTime();
+        break;
+      case 'status':
+        const statusOrder = { PRESENT: 1, LATE: 2, ABSENT: 3 };
+        aValue = statusOrder[a.status] || 4;
+        bValue = statusOrder[b.status] || 4;
+        break;
+      case 'sessionCount':
+        aValue = a.sessionCount || 0;
+        bValue = b.sessionCount || 0;
+        break;
+      default:
+        return 0;
+    }
+
+    // Handle null/undefined values
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+
+    // Sort logic
+    if (typeof aValue === 'string') {
+      return sortOrder === 'asc' 
+        ? aValue.localeCompare(bValue) 
+        : bValue.localeCompare(aValue);
+    }
+
+    if (typeof aValue === 'number') {
+      return sortOrder === 'asc' 
+        ? aValue - bValue 
+        : bValue - aValue;
+    }
+
+    return 0;
+  });
 
   const fetchAttendanceData = async () => {
     setLoading(true);
@@ -273,6 +338,7 @@ export default function AttendanceManagement() {
       
       if (filters.status) params.append('status', filters.status);
       if (filters.driverId) params.append('driverId', filters.driverId);
+      if (filters.search) params.append('search', filters.search);
 
       const response = await fetch(`/api/attendance?${params}`);
       if (!response.ok) {
@@ -373,17 +439,6 @@ export default function AttendanceManagement() {
     return `${h}h ${m}m`;
   };
 
-  const filteredRecords = attendanceRecords.filter(record => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        record.driver.name.toLowerCase().includes(query) ||
-        record.driver.driverId.toLowerCase().includes(query) ||
-        record.driver.email.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
 
   const navigateDate = (direction: 'prev' | 'next') => {
     if (viewMode === 'daily') {
@@ -398,8 +453,50 @@ export default function AttendanceManagement() {
   };
 
   const handleExport = () => {
-    // Implementation for Excel export
-    console.log('Exporting attendance data...');
+    try {
+      // Define columns for Excel export
+      const columns: ExcelColumn[] = [
+        { header: 'Driver ID', key: 'driver.driverId', width: 15, type: 'string' },
+        { header: 'Driver Name', key: 'driver.name', width: 20 },
+        { header: 'Phone', key: 'driver.phone', width: 18, type: 'string' },
+        { header: 'Date', key: 'date', width: 15, type: 'date' },
+        { header: 'Status', key: 'status', width: 15 },
+        { header: 'Check In Time', key: 'checkInTime', width: 20, type: 'date' },
+        { header: 'Check Out Time', key: 'checkOutTime', width: 20, type: 'date' },
+        { header: 'Working Hours', key: 'workingHours', width: 15, type: 'string' },
+        { header: 'Scan Count', key: 'sessionCount', width: 12, type: 'number' },
+        { header: 'Location', key: 'location', width: 20 },
+        { header: 'Notes', key: 'notes', width: 30 },
+      ];
+
+      // Format data for export
+      const exportData = sortedRecords.map(record => ({
+        ...record,
+        status: record.status.replace('_', ' '),
+        workingHours: record.workingHours ? formatWorkingHours(record.workingHours) : 'N/A',
+        sessionCount: record.sessionCount || 0,
+      }));
+
+      // Generate filename based on view mode and date
+      let filename = 'attendance_report';
+      if (viewMode === 'daily') {
+        filename += `_${format(selectedDate, 'yyyy-MM-dd')}`;
+      } else if (viewMode === 'weekly') {
+        filename += `_week_${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd')}`;
+      } else {
+        filename += `_${format(selectedDate, 'yyyy-MM')}`;
+      }
+
+      exportToExcel({
+        filename,
+        sheetName: 'Attendance',
+        columns,
+        data: exportData,
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
 
@@ -427,7 +524,7 @@ export default function AttendanceManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -444,24 +541,6 @@ export default function AttendanceManagement() {
               <p className="text-2xl font-bold text-red-600">{stats.totalAbsent}</p>
             </div>
             <XCircle className="h-8 w-8 text-red-600" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Late</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.totalLate}</p>
-            </div>
-            <AlertTriangle className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Avg. Hours</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.averageWorkingHours.toFixed(1)}h</p>
-            </div>
-            <Clock className="h-8 w-8 text-blue-600" />
           </div>
         </div>
         <div className="bg-white p-6 rounded-lg border border-gray-200">
@@ -486,16 +565,45 @@ export default function AttendanceManagement() {
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <div className="text-lg font-semibold text-gray-900">
-              {viewMode === 'daily' && format(selectedDate, 'MMMM d, yyyy')}
-              {viewMode === 'weekly' && `${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'MMM d')} - ${format(endOfWeek(selectedDate, { weekStartsOn: 1 }), 'MMM d, yyyy')}`}
-              {viewMode === 'monthly' && format(selectedDate, 'MMMM yyyy')}
+            <div className="flex items-center space-x-2">
+              <div className="text-lg font-semibold text-gray-900">
+                {viewMode === 'daily' && format(selectedDate, 'MMMM d, yyyy')}
+                {viewMode === 'weekly' && `${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'MMM d')} - ${format(endOfWeek(selectedDate, { weekStartsOn: 1 }), 'MMM d, yyyy')}`}
+                {viewMode === 'monthly' && format(selectedDate, 'MMMM yyyy')}
+              </div>
+              <button
+                onClick={() => {
+                  const input = document.getElementById('date-picker') as HTMLInputElement;
+                  input?.showPicker();
+                }}
+                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                title="Choose date"
+              >
+                <Calendar className="h-4 w-4" />
+              </button>
+              <input
+                id="date-picker"
+                type="date"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(new Date(e.target.value));
+                  }
+                }}
+                className="sr-only"
+              />
             </div>
             <button
               onClick={() => navigateDate('next')}
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
             >
               <ChevronRight className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setSelectedDate(new Date())}
+              className="ml-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md"
+            >
+              Today
             </button>
           </div>
 
@@ -519,14 +627,14 @@ export default function AttendanceManagement() {
 
         {/* Search and Filters */}
         <div className="flex items-center space-x-4">
-          <div className="flex-1 relative">
-            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+          <div className="flex-1 ">
+            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search drivers..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <button
@@ -579,13 +687,100 @@ export default function AttendanceManagement() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Driver
+                  <button
+                    onClick={() => handleSort('driverName')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Driver</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'driverName' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'driverName' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
+                  <button
+                    onClick={() => handleSort('date')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Date</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'date' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'date' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  <button
+                    onClick={() => handleSort('status')}
+                    className="flex items-center space-x-1 hover:text-gray-700"
+                  >
+                    <span>Status</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'status' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'status' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button
+                    onClick={() => handleSort('sessionCount')}
+                    className="flex items-center justify-center space-x-1 hover:text-gray-700 w-full"
+                  >
+                    <span>Scan Count</span>
+                    <div className="flex flex-col">
+                      <ChevronUp 
+                        className={`h-3 w-3 -mb-1 ${
+                          sortField === 'sessionCount' && sortOrder === 'asc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                      <ChevronDown 
+                        className={`h-3 w-3 -mt-1 ${
+                          sortField === 'sessionCount' && sortOrder === 'desc' 
+                            ? 'text-blue-600' 
+                            : 'text-gray-400'
+                        }`} 
+                      />
+                    </div>
+                  </button>
                 </th>
               </tr>
             </thead>
@@ -608,16 +803,19 @@ export default function AttendanceManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="animate-pulse h-6 w-16 bg-gray-200 rounded-full"></div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <div className="animate-pulse h-4 w-8 bg-gray-200 rounded mx-auto"></div>
+                    </td>
                   </tr>
                 ))
-              ) : filteredRecords.length === 0 ? (
+              ) : sortedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                     No attendance records found
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
+                sortedRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
@@ -654,6 +852,18 @@ export default function AttendanceManagement() {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
                           {record.status.replace('_', ' ')}
                         </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center">
+                        <span className={`text-sm font-medium ${
+                          (record.sessionCount || 0) > 0 ? 'text-gray-900' : 'text-gray-400'
+                        }`}>
+                          {record.sessionCount || 0}
+                        </span>
+                        {(record.sessionCount || 0) > 5 && (
+                          <TrendingUp className="h-4 w-4 text-green-500 ml-1" />
+                        )}
                       </div>
                     </td>
                   </tr>
