@@ -22,6 +22,8 @@ import {
 import { HealthReportWithDetails, RiskLevel, StressLevel } from '@/types';
 import HealthReportModal from '@/components/modals/HealthReportModal';
 import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
+import Pagination from '@/components/common/Pagination';
+import ItemsPerPageSelector from '@/components/common/ItemsPerPageSelector';
 
 interface HealthStats {
   totalReports: number;
@@ -42,7 +44,12 @@ export default function HealthReportsManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalReports, setTotalReports] = useState(0);
-  const itemsPerPage = 15;
+  const [itemsPerPage, setItemsPerPage] = useState(15);
+  
+  // Search debounce
+  const [searchInput, setSearchInput] = useState('');
+  const [searchDebounce, setSearchDebounce] = useState<NodeJS.Timeout | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -66,7 +73,31 @@ export default function HealthReportsManagement() {
 
   useEffect(() => {
     fetchHealthReports();
-  }, [currentPage, filters]);
+  }, [currentPage, filters, itemsPerPage]);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchDebounce) {
+      clearTimeout(searchDebounce);
+    }
+    
+    if (searchInput !== filters.search) {
+      setIsSearching(true);
+    }
+    
+    const timeout = setTimeout(() => {
+      setFilters(prev => ({ ...prev, search: searchInput }));
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+    
+    setSearchDebounce(timeout);
+    
+    return () => {
+      if (searchDebounce) {
+        clearTimeout(searchDebounce);
+      }
+    };
+  }, [searchInput]);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -139,8 +170,15 @@ export default function HealthReportsManagement() {
     return 0;
   });
 
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
   const fetchHealthReports = async () => {
-    setLoading(true);
+    if (!isSearching) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -177,6 +215,7 @@ export default function HealthReportsManagement() {
       });
     } finally {
       setLoading(false);
+      setIsSearching(false);
     }
   };
 
@@ -367,10 +406,15 @@ export default function HealthReportsManagement() {
             <input
               type="text"
               placeholder="Search by driver name or ID..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -446,6 +490,20 @@ export default function HealthReportsManagement() {
 
       {/* Health Reports Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            {loading ? (
+              <span>Loading...</span>
+            ) : (
+              <span>{totalReports} report{totalReports !== 1 ? 's' : ''} found</span>
+            )}
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+            options={[15, 30, 50, 100]}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -758,60 +816,13 @@ export default function HealthReportsManagement() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Showing{' '}
-                    <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span>{' '}
-                    to{' '}
-                    <span className="font-medium">
-                      {Math.min(currentPage * itemsPerPage, totalReports)}
-                    </span>{' '}
-                    of{' '}
-                    <span className="font-medium">{totalReports}</span>{' '}
-                    results
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === page
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                  </nav>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalReports}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* Health Report Modal */}

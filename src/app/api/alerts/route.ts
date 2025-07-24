@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || '';
     const severity = searchParams.get('severity') || '';
     const isRead = searchParams.get('isRead');
+    const createdAfter = searchParams.get('createdAfter');
 
     const skip = (page - 1) * limit;
 
@@ -27,6 +28,12 @@ export async function GET(request: NextRequest) {
 
     if (isRead !== null && isRead !== undefined && isRead !== '') {
       whereClause.isRead = isRead === 'true';
+    }
+
+    if (createdAfter) {
+      whereClause.createdAt = {
+        gte: new Date(createdAfter)
+      };
     }
 
     const [alerts, total] = await Promise.all([

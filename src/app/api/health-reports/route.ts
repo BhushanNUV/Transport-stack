@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiResponse, PaginatedResponse } from '@/types';
+import { checkAndCreateAlerts } from '@/lib/alertService';
 
 // GET /api/health-reports - Get health reports from monitoring sessions with health vitals
 export async function GET(request: NextRequest) {
@@ -271,10 +272,28 @@ export async function POST(request: NextRequest) {
             height: true,
             createdAt: true,
             updatedAt: true,
+            organizationId: true,
           },
         },
       },
     });
+
+    // Check health metrics and create alerts if needed
+    if (driver.organizationId) {
+      await checkAndCreateAlerts(
+        driverId,
+        driver.name,
+        {
+          heartRate: heartRate || undefined,
+          // Map stress level to SNS index (simplified mapping)
+          snsIndex: stressLevel === 'VERY_HIGH' ? 8 : 
+                   stressLevel === 'HIGH' ? 6 : 
+                   stressLevel === 'MILD' ? 4 : 
+                   stressLevel === 'LOW' ? 2 : 1,
+        },
+        driver.organizationId
+      );
+    }
 
     const response: ApiResponse<any> = {
       success: true,

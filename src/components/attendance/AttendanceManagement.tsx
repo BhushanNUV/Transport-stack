@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { AttendanceRecord, Driver, AttendanceStatus, AttendanceFilter } from '@/types';
 import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
+import Pagination from '@/components/common/Pagination';
+import ItemsPerPageSelector from '@/components/common/ItemsPerPageSelector';
 
 interface AttendanceWithDriver extends AttendanceRecord {
   driver: Driver;
@@ -250,6 +252,10 @@ export default function AttendanceManagement() {
   // Sorting
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5); // Reduced to 5 to show pagination with fewer records
 
   useEffect(() => {
     fetchAttendanceData();
@@ -311,6 +317,23 @@ export default function AttendanceManagement() {
 
     return 0;
   });
+  
+  // Calculate pagination
+  const totalRecords = sortedRecords.length;
+  const totalPages = Math.ceil(totalRecords / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = sortedRecords.slice(startIndex, endIndex);
+  
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, selectedDate, viewMode]);
+  
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
 
   const fetchAttendanceData = async () => {
     setLoading(true);
@@ -335,6 +358,10 @@ export default function AttendanceManagement() {
       
       params.append('startDate', startDate.toISOString());
       params.append('endDate', endDate.toISOString());
+      
+      // Request all records for client-side pagination
+      params.append('limit', '1000'); // Get up to 1000 records
+      params.append('page', '1');
       
       if (filters.status) params.append('status', filters.status);
       if (filters.driverId) params.append('driverId', filters.driverId);
@@ -682,6 +709,20 @@ export default function AttendanceManagement() {
 
       {/* Attendance Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            {loading ? (
+              <span>Loading...</span>
+            ) : (
+              <span>{totalRecords} record{totalRecords !== 1 ? 's' : ''} found</span>
+            )}
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+            options={[5, 10, 20, 30, 50]}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -808,14 +849,14 @@ export default function AttendanceManagement() {
                     </td>
                   </tr>
                 ))
-              ) : sortedRecords.length === 0 ? (
+              ) : paginatedRecords.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                     No attendance records found
                   </td>
                 </tr>
               ) : (
-                sortedRecords.map((record) => (
+                paginatedRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
@@ -872,6 +913,15 @@ export default function AttendanceManagement() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalRecords}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

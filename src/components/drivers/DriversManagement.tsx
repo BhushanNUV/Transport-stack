@@ -20,9 +20,6 @@ import {
   X,
   User,
   Phone,
-  Activity,
-  AlertTriangle,
-  CheckCircle,
   Camera,
   Aperture,
 } from 'lucide-react';
@@ -31,6 +28,8 @@ import HealthReportModal from '@/components/modals/HealthReportModal';
 import SuccessModal from '@/components/modals/SuccessModal';
 import CameraModal from '@/components/modals/CameraModal';
 import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
+import Pagination from '@/components/common/Pagination';
+import ItemsPerPageSelector from '@/components/common/ItemsPerPageSelector';
 
 export default function DriversManagement() {
   const [drivers, setDrivers] = useState<DriverWithRelations[]>([]);
@@ -46,19 +45,29 @@ export default function DriversManagement() {
   const [editingDriver, setEditingDriver] = useState<DriverWithRelations | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [successMessage, setSuccessMessage] = useState({ title: '', message: '' });
+  const [isSearching, setIsSearching] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalDrivers, setTotalDrivers] = useState(0);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Gender statistics
+  const [genderStats, setGenderStats] = useState({
+    male: 0,
+    female: 0,
+    other: 0
+  });
+  
+  // Search debounce
+  const [searchInput, setSearchInput] = useState('');
+  const [searchDebounce, setSearchDebounce] = useState<NodeJS.Timeout | null>(null);
 
   // Filters
   const [filters, setFilters] = useState<DriversFilter>({
     search: '',
     gender: undefined,
-    ageRange: { min: 18, max: 70 },
-    riskLevel: undefined,
   });
 
   // Sorting
@@ -83,7 +92,35 @@ export default function DriversManagement() {
 
   useEffect(() => {
     fetchDrivers();
-  }, [currentPage, filters]);
+  }, [currentPage, filters, itemsPerPage]);
+
+  useEffect(() => {
+    fetchGenderStats();
+  }, []);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchDebounce) {
+      clearTimeout(searchDebounce);
+    }
+    
+    if (searchInput !== filters.search) {
+      setIsSearching(true);
+    }
+    
+    const timeout = setTimeout(() => {
+      setFilters(prev => ({ ...prev, search: searchInput }));
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+    
+    setSearchDebounce(timeout);
+    
+    return () => {
+      if (searchDebounce) {
+        clearTimeout(searchDebounce);
+      }
+    };
+  }, [searchInput]);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -92,6 +129,27 @@ export default function DriversManagement() {
       setSortField(field);
       setSortOrder('asc');
     }
+  };
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
+  const hasActiveFilters = () => {
+    return !!(
+      filters.search ||
+      filters.gender
+    );
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      search: '',
+      gender: undefined,
+    });
+    setSearchInput('');
+    setCurrentPage(1);
   };
 
   const sortedDrivers = [...drivers].sort((a, b) => {
@@ -127,7 +185,9 @@ export default function DriversManagement() {
   });
 
   const fetchDrivers = async () => {
-    setLoading(true);
+    if (!isSearching) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -138,11 +198,6 @@ export default function DriversManagement() {
 
       if (filters.search) params.append('search', filters.search);
       if (filters.gender) params.append('gender', filters.gender);
-      if (filters.riskLevel) params.append('riskLevel', filters.riskLevel);
-      if (filters.ageRange) {
-        params.append('minAge', filters.ageRange.min.toString());
-        params.append('maxAge', filters.ageRange.max.toString());
-      }
 
       const response = await fetch(`/api/drivers?${params}`);
       if (!response.ok) {
@@ -157,6 +212,29 @@ export default function DriversManagement() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
+      setIsSearching(false);
+    }
+  };
+
+  const fetchGenderStats = async () => {
+    try {
+      const response = await fetch('/api/drivers/stats');
+      if (!response.ok) {
+        throw new Error('Failed to fetch gender statistics');
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setGenderStats({
+          male: result.data.male,
+          female: result.data.female,
+          other: result.data.other,
+        });
+        // Also update total drivers from stats
+        setTotalDrivers(result.data.total);
+      }
+    } catch (err) {
+      console.error('Error fetching gender stats:', err);
     }
   };
 
@@ -230,6 +308,7 @@ export default function DriversManagement() {
       }
 
       await fetchDrivers();
+      await fetchGenderStats(); // Refresh gender statistics
       handleCloseModal();
       
       // Show success modal
@@ -260,6 +339,7 @@ export default function DriversManagement() {
       }
 
       await fetchDrivers();
+      await fetchGenderStats(); // Refresh gender statistics after deletion
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -382,25 +462,6 @@ export default function DriversManagement() {
     );
   };
 
-  const getAttendanceStatus = (records: any[]) => {
-    if (!records.length) return { status: 'No Data', color: 'text-gray-500' };
-    
-    const latestRecord = records[0];
-    const today = new Date();
-    const recordDate = new Date(latestRecord.date);
-    
-    if (recordDate.toDateString() === today.toDateString()) {
-      if (latestRecord.status === 'PRESENT') {
-        return { status: 'Present', color: 'text-green-600' };
-      } else if (latestRecord.status === 'LATE') {
-        return { status: 'Late', color: 'text-orange-600' };
-      } else {
-        return { status: 'Absent', color: 'text-red-600' };
-      }
-    }
-    
-    return { status: 'Not Checked In', color: 'text-gray-500' };
-  };
 
   return (
     <div className="space-y-6">
@@ -432,47 +493,59 @@ export default function DriversManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Total Drivers</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900">{totalDrivers}</p>
+              <p className="text-sm font-medium text-gray-600 mb-2">Total Drivers</p>
+              <p className="text-3xl font-bold text-gray-900">{totalDrivers}</p>
             </div>
-            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Users className="h-7 w-7 text-blue-600" />
+            </div>
           </div>
         </div>
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
+        
+        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Active Today</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-600">
-                {drivers.filter(d => getAttendanceStatus(d.attendanceRecords).status === 'Present').length}
-              </p>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-600 mb-3">Gender Distribution (All Drivers)</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Male</span>
+                  <span className="text-sm font-semibold text-blue-600">
+                    {genderStats.male}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Female</span>
+                  <span className="text-sm font-semibold text-pink-600">
+                    {genderStats.female}
+                  </span>
+                </div>
+                {genderStats.other > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Other</span>
+                    <span className="text-sm font-semibold text-gray-600">
+                      {genderStats.other}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Ratio</span>
+                  <span className="font-medium text-gray-700">
+                    {genderStats.male}:{genderStats.female}
+                  </span>
+                </div>
+              </div>
             </div>
-            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
-          </div>
-        </div>
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-gray-600">High Risk</p>
-              <p className="text-xl sm:text-2xl font-bold text-red-600">
-                {drivers.filter(d => d.healthReports[0]?.riskLevel === 'HIGH' || d.healthReports[0]?.riskLevel === 'CRITICAL').length}
-              </p>
+            <div className="ml-6">
+              <div className="h-12 w-12 bg-gradient-to-br from-blue-100 to-pink-100 rounded-lg flex items-center justify-center">
+                <Users className="h-7 w-7 text-purple-600" />
+              </div>
             </div>
-            <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600" />
-          </div>
-        </div>
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Recent Alerts</p>
-              <p className="text-xl sm:text-2xl font-bold text-orange-600">
-                {drivers.reduce((acc, d) => acc + d.alcoholDetections.length + d.objectDetections.length, 0)}
-              </p>
-            </div>
-            <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
           </div>
         </div>
       </div>
@@ -484,11 +557,16 @@ export default function DriversManagement() {
             <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search drivers..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              placeholder="Search by name, ID, or phone..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
             />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -498,11 +576,20 @@ export default function DriversManagement() {
             <span>Filters</span>
             <ChevronDown className={`h-4 w-4 transform transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </button>
+          {hasActiveFilters() && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center space-x-2 px-4 py-2 text-red-600 bg-red-50 rounded-md hover:bg-red-100 text-sm sm:text-base"
+            >
+              <X className="h-4 w-4" />
+              <span>Clear Filters</span>
+            </button>
+          )}
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
-            <div>
+          <div className="pt-4 border-t border-gray-200">
+            <div className="max-w-xs">
               <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
               <select
                 value={filters.gender || ''}
@@ -514,49 +601,6 @@ export default function DriversManagement() {
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Risk Level</label>
-              <select
-                value={filters.riskLevel || ''}
-                onChange={(e) => setFilters({ ...filters, riskLevel: e.target.value as RiskLevel || undefined })}
-                className="w-full p-2 border border-gray-300 rounded-md"
-              >
-                <option value="">All Risk Levels</option>
-                <option value="NORMAL">Normal</option>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="CRITICAL">Critical</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Min Age</label>
-              <input
-                type="number"
-                min="18"
-                max="70"
-                value={filters.ageRange?.min || 18}
-                onChange={(e) => setFilters({
-                  ...filters,
-                  ageRange: { ...filters.ageRange!, min: parseInt(e.target.value) }
-                })}
-                className="w-full p-2 border border-gray-300 rounded-md"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Age</label>
-              <input
-                type="number"
-                min="18"
-                max="70"
-                value={filters.ageRange?.max || 70}
-                onChange={(e) => setFilters({
-                  ...filters,
-                  ageRange: { ...filters.ageRange!, max: parseInt(e.target.value) }
-                })}
-                className="w-full p-2 border border-gray-300 rounded-md"
-              />
             </div>
           </div>
         )}
@@ -577,6 +621,19 @@ export default function DriversManagement() {
 
       {/* Drivers Table - Desktop */}
       <div className="hidden sm:block bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            {loading ? (
+              <span>Loading...</span>
+            ) : (
+              <span>{totalDrivers} driver{totalDrivers !== 1 ? 's' : ''} found</span>
+            )}
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -631,21 +688,21 @@ export default function DriversManagement() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <button
-                    onClick={() => handleSort('age')}
+                    onClick={() => handleSort('gender')}
                     className="flex items-center space-x-1 hover:text-gray-700"
                   >
-                    <span>Age</span>
+                    <span>Gender</span>
                     <div className="flex flex-col">
                       <ChevronUp 
                         className={`h-3 w-3 -mb-1 ${
-                          sortField === 'age' && sortOrder === 'asc' 
+                          sortField === 'gender' && sortOrder === 'asc' 
                             ? 'text-blue-600' 
                             : 'text-gray-400'
                         }`} 
                       />
                       <ChevronDown 
                         className={`h-3 w-3 -mt-1 ${
-                          sortField === 'age' && sortOrder === 'desc' 
+                          sortField === 'gender' && sortOrder === 'desc' 
                             ? 'text-blue-600' 
                             : 'text-gray-400'
                         }`} 
@@ -682,7 +739,7 @@ export default function DriversManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="animate-pulse">
-                        <div className="h-4 w-12 bg-gray-200 rounded"></div>
+                        <div className="h-6 w-20 bg-gray-200 rounded-full"></div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -720,9 +777,6 @@ export default function DriversManagement() {
                           <div>
                             <div className="text-sm font-medium text-gray-900">{driver.name}</div>
                             <div className="text-sm text-gray-500">{driver.driverId}</div>
-                            <div className="text-xs text-gray-400">
-                              {driver.gender}
-                            </div>
                           </div>
                         </div>
                       </td>
@@ -733,8 +787,15 @@ export default function DriversManagement() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{driver.age}</div>
-                        <div className="text-xs text-gray-500">years</div>
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          driver.gender === 'MALE' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : driver.gender === 'FEMALE'
+                            ? 'bg-pink-100 text-pink-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {driver.gender}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
@@ -773,60 +834,13 @@ export default function DriversManagement() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Showing{' '}
-                    <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span>{' '}
-                    to{' '}
-                    <span className="font-medium">
-                      {Math.min(currentPage * itemsPerPage, totalDrivers)}
-                    </span>{' '}
-                    of{' '}
-                    <span className="font-medium">{totalDrivers}</span>{' '}
-                    results
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === page
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                  </nav>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalDrivers}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* Drivers List - Mobile */}
@@ -909,10 +923,6 @@ export default function DriversManagement() {
                   <span className="text-gray-900 font-medium">{driver.phone}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Age:</span>
-                  <span className="text-gray-900 font-medium">{driver.age} years</span>
-                </div>
-                <div className="flex items-center justify-between">
                   <span className="text-gray-600">Gender:</span>
                   <span className="text-gray-900 font-medium">{driver.gender}</span>
                 </div>
@@ -923,26 +933,15 @@ export default function DriversManagement() {
         
         {/* Mobile Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between py-4">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="flex items-center space-x-1 px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span>Previous</span>
-            </button>
-            <span className="text-sm text-gray-700">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="flex items-center space-x-1 px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              <span>Next</span>
-              <ChevronRight className="h-4 w-4" />
-            </button>
+          <div className="bg-white rounded-lg border border-gray-200 mt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalDrivers}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              showItemsInfo={false}
+            />
           </div>
         )}
       </div>

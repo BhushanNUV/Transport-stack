@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Notification, NotificationContextType } from '@/types';
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -11,41 +11,59 @@ interface NotificationProviderProps {
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [lastAlertCheck, setLastAlertCheck] = useState<Date>(new Date());
 
-  // Sample notifications for demo
-  useEffect(() => {
-    const sampleNotifications: Notification[] = [
-      {
-        id: '1',
-        title: 'High Risk Alert',
-        message: 'Driver John Doe has exceeded stress threshold during shift',
-        type: 'warning',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-        read: false,
-        driverId: 'driver-1',
-        actionUrl: '/drivers/driver-1'
-      },
-      {
-        id: '2',
-        title: 'Health Report Ready',
-        message: 'Daily health report for Sarah Smith is now available',
-        type: 'info',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        read: false,
-        driverId: 'driver-2',
-        actionUrl: '/health'
-      },
-      {
-        id: '3',
-        title: 'System Update',
-        message: 'Driver monitoring system updated successfully',
-        type: 'success',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-        read: true
+  // Poll for new alerts and convert to notifications
+  const fetchNewAlerts = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/alerts?createdAfter=${lastAlertCheck.toISOString()}&limit=10`);
+      if (response.ok) {
+        const data = await response.json();
+        const newAlerts = data.data || [];
+        
+        // Convert alerts to notifications
+        newAlerts.forEach((alert: any) => {
+          if (alert.metadata?.sendNotification !== false) {
+            const notification: Notification = {
+              id: `alert-${alert.id}`,
+              title: alert.title,
+              message: alert.message,
+              type: alert.severity === 'CRITICAL' ? 'error' : 
+                    alert.severity === 'WARNING' ? 'warning' : 'info',
+              timestamp: new Date(alert.createdAt),
+              read: false,
+              driverId: alert.metadata?.driverId,
+              actionUrl: alert.type === 'HEALTH' ? '/health' : '/alerts'
+            };
+            
+            setNotifications(prev => {
+              // Check if notification already exists
+              if (prev.some(n => n.id === notification.id)) {
+                return prev;
+              }
+              return [notification, ...prev];
+            });
+          }
+        });
+        
+        if (newAlerts.length > 0) {
+          setLastAlertCheck(new Date());
+        }
       }
-    ];
-    setNotifications(sampleNotifications);
-  }, []);
+    } catch (error) {
+      console.error('Error fetching alerts for notifications:', error);
+    }
+  }, [lastAlertCheck]);
+
+  // Poll for new alerts every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchNewAlerts, 30000);
+    
+    // Initial fetch
+    fetchNewAlerts();
+    
+    return () => clearInterval(interval);
+  }, [fetchNewAlerts]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
