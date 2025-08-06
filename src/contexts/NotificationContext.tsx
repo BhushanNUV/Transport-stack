@@ -9,92 +9,129 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
+// Default organization ID for demo purposes
+const DEFAULT_ORG_ID = 'org_default';
+
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [lastAlertCheck, setLastAlertCheck] = useState<Date>(new Date());
+  const [lastFetch, setLastFetch] = useState<Date>(new Date());
 
-  // Poll for new alerts and convert to notifications
-  const fetchNewAlerts = useCallback(async () => {
+  // Fetch notifications from the API
+  const fetchNotifications = useCallback(async () => {
     try {
-      const response = await fetch(`/api/alerts?createdAfter=${lastAlertCheck.toISOString()}&limit=10`);
+      // Fetch notifications with sync from recent alerts
+      const response = await fetch(`/api/notifications?syncAlerts=true&limit=50&organizationId=${DEFAULT_ORG_ID}`);
       if (response.ok) {
         const data = await response.json();
-        const newAlerts = data.data || [];
+        const apiNotifications = data.data || [];
         
-        // Convert alerts to notifications
-        newAlerts.forEach((alert: any) => {
-          if (alert.metadata?.sendNotification !== false) {
-            const notification: Notification = {
-              id: `alert-${alert.id}`,
-              title: alert.title,
-              message: alert.message,
-              type: alert.severity === 'CRITICAL' ? 'error' : 
-                    alert.severity === 'WARNING' ? 'warning' : 'info',
-              timestamp: new Date(alert.createdAt),
-              read: false,
-              driverId: alert.metadata?.driverId,
-              actionUrl: alert.type === 'HEALTH' ? '/health' : '/alerts'
-            };
-            
-            setNotifications(prev => {
-              // Check if notification already exists
-              if (prev.some(n => n.id === notification.id)) {
-                return prev;
-              }
-              return [notification, ...prev];
-            });
-          }
-        });
+        // Convert API notifications to context format
+        const formattedNotifications: Notification[] = apiNotifications.map((notif: any) => ({
+          id: notif.id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          timestamp: new Date(notif.timestamp),
+          read: notif.read,
+          driverId: notif.driverId,
+          actionUrl: notif.actionUrl
+        }));
         
-        if (newAlerts.length > 0) {
-          setLastAlertCheck(new Date());
-        }
+        setNotifications(formattedNotifications);
+        setLastFetch(new Date());
       }
     } catch (error) {
-      console.error('Error fetching alerts for notifications:', error);
+      console.error('Error fetching notifications:', error);
     }
-  }, [lastAlertCheck]);
+  }, []);
 
-  // Poll for new alerts every 30 seconds
+  // Poll for new notifications every 30 seconds
   useEffect(() => {
-    const interval = setInterval(fetchNewAlerts, 30000);
+    const interval = setInterval(fetchNotifications, 30000);
     
     // Initial fetch
-    fetchNewAlerts();
+    fetchNotifications();
     
     return () => clearInterval(interval);
-  }, [fetchNewAlerts]);
+  }, [fetchNotifications]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === id 
-          ? { ...notification, read: true }
-          : notification
-      )
-    );
+  const markAsRead = async (id: string) => {
+    try {
+      // Update on server
+      const response = await fetch(`/api/notifications/${id}/read`, {
+        method: 'PATCH',
+      });
+      
+      if (response.ok) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(notification => 
+            notification.id === id 
+              ? { ...notification, read: true }
+              : notification
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notification => ({ ...notification, read: true }))
-    );
+  const markAllAsRead = async () => {
+    try {
+      // Update on server
+      const response = await fetch(`/api/notifications/mark-all-read?organizationId=${DEFAULT_ORG_ID}`, {
+        method: 'PATCH',
+      });
+      
+      if (response.ok) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(notification => ({ ...notification, read: true }))
+        );
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
-  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      read: false
-    };
-    setNotifications(prev => [newNotification, ...prev]);
+  const addNotification = async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+    try {
+      // Create on server
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...notification,
+          organizationId: DEFAULT_ORG_ID,
+        }),
+      });
+      
+      if (response.ok) {
+        // Refresh notifications
+        await fetchNotifications();
+      }
+    } catch (error) {
+      console.error('Error adding notification:', error);
+    }
   };
 
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  const removeNotification = async (id: string) => {
+    try {
+      // Delete on server
+      const response = await fetch(`/api/notifications/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        // Update local state
+        setNotifications(prev => prev.filter(notification => notification.id !== id));
+      }
+    } catch (error) {
+      console.error('Error removing notification:', error);
+    }
   };
 
   const value: NotificationContextType = {

@@ -1,6 +1,10 @@
-import { prisma } from './prisma';
 import { HEALTH_THRESHOLDS, checkThreshold } from './alertThresholds';
 import { AlertType, AlertSeverity } from '@prisma/client';
+import alertStorage from './alertStorage';
+import notificationStorage from './notificationStorage';
+
+// Default organization ID for demo purposes
+const DEFAULT_ORG_ID = 'org_default';
 
 interface HealthMetrics {
   heartRate?: number;
@@ -55,7 +59,7 @@ export async function checkAndCreateAlerts(
   driverId: string,
   driverName: string,
   metrics: HealthMetrics,
-  organizationId: string
+  organizationId?: string
 ): Promise<void> {
   const alertChecks: AlertCheck[] = [];
 
@@ -167,7 +171,7 @@ export async function checkAndCreateAlerts(
           value: check.value,
           threshold: check.threshold,
           isCritical,
-          organizationId,
+          organizationId: organizationId || DEFAULT_ORG_ID,
           sendNotification: thresholdConfig.sendNotification
         });
       }
@@ -192,43 +196,41 @@ async function createHealthAlert(params: CreateAlertParams): Promise<void> {
   
   try {
     // Check if similar alert already exists in last hour
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const existingAlert = await prisma.systemAlert.findFirst({
-      where: {
-        organizationId,
-        type: AlertType.HEALTH,
-        title: {
-          contains: parameter
-        },
-        createdAt: {
-          gte: oneHourAgo
-        }
-      }
-    });
+    const isDuplicate = alertStorage.checkForDuplicateAlert(
+      organizationId,
+      AlertType.HEALTH,
+      parameter,
+      60 // within last 60 minutes
+    );
 
-    if (existingAlert) {
+    if (isDuplicate) {
       return; // Don't create duplicate alerts
     }
 
     // Create the alert
-    await prisma.systemAlert.create({
-      data: {
-        title: `Critical Health Alert: ${parameter}`,
-        message: thresholdConfig.alertMessage(value, driverName),
-        type: AlertType.HEALTH,
-        severity: isCritical ? AlertSeverity.CRITICAL : AlertSeverity.WARNING,
-        organizationId,
-        metadata: {
-          driverId,
-          driverName,
-          parameter,
-          value: value.toString(),
-          threshold: threshold,
-          unit: thresholdConfig.unit,
-          sendNotification
-        }
+    const alert = alertStorage.createAlert({
+      title: `Critical Health Alert: ${parameter}`,
+      message: thresholdConfig.alertMessage(value, driverName),
+      type: AlertType.HEALTH,
+      severity: isCritical ? AlertSeverity.CRITICAL : AlertSeverity.WARNING,
+      organizationId,
+      isRead: false,
+      targetRole: null,
+      metadata: {
+        driverId,
+        driverName,
+        parameter,
+        value: value.toString(),
+        threshold: threshold,
+        unit: thresholdConfig.unit,
+        sendNotification
       }
     });
+
+    // Create corresponding notification
+    if (sendNotification) {
+      notificationStorage.createFromAlert(alert, organizationId);
+    }
 
     // If this is a critical alert, also update any critical cases tracking
     if (isCritical) {
@@ -244,24 +246,29 @@ async function createHealthAlert(params: CreateAlertParams): Promise<void> {
 export async function createAlcoholAlert(
   driverId: string,
   driverName: string,
-  organizationId: string,
+  organizationId?: string,
   detectionData?: any
 ): Promise<void> {
   try {
-    await prisma.systemAlert.create({
-      data: {
-        title: 'Alcohol Detection Alert',
-        message: `Alcohol detected for driver ${driverName}. Immediate action required.`,
-        type: AlertType.ALCOHOL_DETECTION,
-        severity: AlertSeverity.CRITICAL,
-        organizationId,
-        metadata: {
-          driverId,
-          driverName,
-          detectionData
-        }
+    const orgId = organizationId || DEFAULT_ORG_ID;
+    const alert = alertStorage.createAlert({
+      title: 'Alcohol Detection Alert',
+      message: `Alcohol detected for driver ${driverName}. Immediate action required.`,
+      type: AlertType.ALCOHOL_DETECTION,
+      severity: AlertSeverity.CRITICAL,
+      organizationId: orgId,
+      isRead: false,
+      targetRole: null,
+      metadata: {
+        driverId,
+        driverName,
+        detectionData,
+        sendNotification: true
       }
     });
+
+    // Create corresponding notification
+    notificationStorage.createFromAlert(alert, orgId);
   } catch (error) {
     console.error('Error creating alcohol alert:', error);
   }
@@ -271,24 +278,29 @@ export async function createAlcoholAlert(
 export async function createDrowsinessAlert(
   driverId: string,
   driverName: string,
-  organizationId: string,
+  organizationId?: string,
   detectionData?: any
 ): Promise<void> {
   try {
-    await prisma.systemAlert.create({
-      data: {
-        title: 'Drowsiness Detection Alert',
-        message: `Drowsiness detected for driver ${driverName}. Safety check required.`,
-        type: AlertType.SAFETY,
-        severity: AlertSeverity.CRITICAL,
-        organizationId,
-        metadata: {
-          driverId,
-          driverName,
-          detectionData
-        }
+    const orgId = organizationId || DEFAULT_ORG_ID;
+    const alert = alertStorage.createAlert({
+      title: 'Drowsiness Detection Alert',
+      message: `Drowsiness detected for driver ${driverName}. Safety check required.`,
+      type: AlertType.SAFETY,
+      severity: AlertSeverity.CRITICAL,
+      organizationId: orgId,
+      isRead: false,
+      targetRole: null,
+      metadata: {
+        driverId,
+        driverName,
+        detectionData,
+        sendNotification: true
       }
     });
+
+    // Create corresponding notification
+    notificationStorage.createFromAlert(alert, orgId);
   } catch (error) {
     console.error('Error creating drowsiness alert:', error);
   }

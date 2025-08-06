@@ -6,7 +6,7 @@ import { verifyToken } from '@/lib/auth';
 const publicRoutes = ['/login', '/api/auth/login', '/api/auth/logout', '/api/drivers', '/api/debug'];
 
 // Routes that should be completely public (no auth required)
-const fullyPublicRoutes = ['/api/drivers', '/api/debug'];
+const fullyPublicRoutes = ['/api/drivers', '/api/debug', '/api/alerts/test', '/api/alerts', '/api/notifications'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

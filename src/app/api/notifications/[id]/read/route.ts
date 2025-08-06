@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import alertStorage from '@/lib/alertStorage';
+import notificationStorage from '@/lib/notificationStorage';
 import { ApiResponse } from '@/types';
 
-// PATCH /api/alerts/[id]/read - Mark an alert as read
+// PATCH /api/notifications/[id]/read - Mark a notification as read
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -10,13 +10,13 @@ export async function PATCH(
   try {
     const { id } = await params;
 
-    const alert = alertStorage.markAsRead(id);
+    const notification = notificationStorage.markAsRead(id);
 
-    if (!alert) {
+    if (!notification) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Alert not found',
+          error: 'Notification not found',
         },
         { status: 404 }
       );
@@ -24,17 +24,17 @@ export async function PATCH(
 
     const response: ApiResponse<any> = {
       success: true,
-      data: alert,
-      message: 'Alert marked as read',
+      data: notification,
+      message: 'Notification marked as read',
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error marking alert as read:', error);
+    console.error('Error marking notification as read:', error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to mark alert as read',
+        error: 'Failed to mark notification as read',
       },
       { status: 500 }
     );

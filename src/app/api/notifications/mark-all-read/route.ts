@@ -1,32 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import alertStorage from '@/lib/alertStorage';
+import notificationStorage from '@/lib/notificationStorage';
 import { ApiResponse } from '@/types';
 
 // Default organization ID for demo purposes
 const DEFAULT_ORG_ID = 'org_default';
 
-// PATCH /api/alerts/mark-all-read - Mark all alerts as read
+// PATCH /api/notifications/mark-all-read - Mark all notifications as read
 export async function PATCH(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get('organizationId') || DEFAULT_ORG_ID;
     
-    // Mark all unread alerts as read for the organization
-    const count = alertStorage.markAllAsRead(organizationId);
+    // Mark all unread notifications as read for the organization
+    const count = notificationStorage.markAllAsRead(organizationId);
 
     const response: ApiResponse<{ count: number }> = {
       success: true,
       data: { count },
-      message: `Marked ${count} alerts as read`,
+      message: `Marked ${count} notifications as read`,
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error marking all alerts as read:', error);
+    console.error('Error marking all notifications as read:', error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to mark all alerts as read',
+        error: 'Failed to mark all notifications as read',
       },
       { status: 500 }
     );

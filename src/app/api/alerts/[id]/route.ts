@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import alertStorage from '@/lib/alertStorage';
 import { ApiResponse } from '@/types';
 
 // DELETE /api/alerts/[id] - Delete an alert
@@ -10,12 +10,9 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Check if alert exists
-    const existingAlert = await prisma.systemAlert.findUnique({
-      where: { id },
-    });
+    const success = alertStorage.deleteAlert(id);
 
-    if (!existingAlert) {
+    if (!success) {
       return NextResponse.json(
         {
           success: false,
@@ -24,11 +21,6 @@ export async function DELETE(
         { status: 404 }
       );
     }
-
-    // Delete alert
-    await prisma.systemAlert.delete({
-      where: { id },
-    });
 
     const response: ApiResponse<null> = {
       success: true,

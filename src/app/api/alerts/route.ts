@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { ApiResponse, PaginatedResponse } from '@/types';
+import alertStorage from '@/lib/alertStorage';
+import { AlertType, AlertSeverity } from '@prisma/client';
+
+// Default organization ID for demo purposes
+const DEFAULT_ORG_ID = 'org_default';
 
 // GET /api/alerts - Get system alerts with pagination and filters
 export async function GET(request: NextRequest) {
@@ -12,39 +16,20 @@ export async function GET(request: NextRequest) {
     const severity = searchParams.get('severity') || '';
     const isRead = searchParams.get('isRead');
     const createdAfter = searchParams.get('createdAfter');
+    const organizationId = searchParams.get('organizationId') || DEFAULT_ORG_ID;
 
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    // Build where clause
-    const whereClause: any = {};
-
-    if (type) {
-      whereClause.type = type;
-    }
-
-    if (severity) {
-      whereClause.severity = severity;
-    }
-
-    if (isRead !== null && isRead !== undefined && isRead !== '') {
-      whereClause.isRead = isRead === 'true';
-    }
-
-    if (createdAfter) {
-      whereClause.createdAt = {
-        gte: new Date(createdAfter)
-      };
-    }
-
-    const [alerts, total] = await Promise.all([
-      prisma.systemAlert.findMany({
-        where: whereClause,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.systemAlert.count({ where: whereClause }),
-    ]);
+    // Get filtered alerts from storage
+    const { alerts, total } = alertStorage.getAlerts({
+      organizationId,
+      type: type ? (type as AlertType) : undefined,
+      severity: severity ? (severity as AlertSeverity) : undefined,
+      isRead: isRead !== null && isRead !== undefined && isRead !== '' ? isRead === 'true' : undefined,
+      createdAfter: createdAfter ? new Date(createdAfter) : undefined,
+      limit,
+      offset,
+    });
 
     const response: PaginatedResponse<any> = {
       data: alerts,
@@ -82,7 +67,12 @@ export async function POST(request: NextRequest) {
       type,
       severity,
       targetRole,
+      organizationId,
+      metadata,
     } = body;
+
+    // Use default organization ID if not provided
+    const orgId = organizationId || DEFAULT_ORG_ID;
 
     // Validate required fields
     if (!title || !message || !type || !severity) {
@@ -95,16 +85,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create alert
-    const alert = await prisma.systemAlert.create({
-      data: {
-        title,
-        message,
-        type,
-        severity,
-        targetRole: targetRole || null,
-        isRead: false,
-      },
+    // Create alert in storage
+    const alert = alertStorage.createAlert({
+      title,
+      message,
+      type,
+      severity,
+      targetRole: targetRole || null,
+      organizationId: orgId,
+      metadata: metadata || {},
+      isRead: false,
     });
 
     const response: ApiResponse<any> = {
