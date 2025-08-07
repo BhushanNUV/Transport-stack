@@ -20,6 +20,8 @@ import {
   Minus
 } from 'lucide-react';
 import { HealthReportWithDetails, AlcoholDetection, ObjectDetection } from '@/types';
+import HealthReportPrint from './HealthReportPrint';
+import '@/styles/print.css';
 
 interface HealthReportModalProps {
   isOpen: boolean;
@@ -132,7 +134,312 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
   };
 
   const handlePrint = () => {
-    window.print();
+    // Ensure data is loaded
+    if (!healthData) {
+      alert('Please wait for data to load');
+      return;
+    }
+    
+    // Destructure data for easier access
+    const { driver, healthVitals, latestReport, latestMonitoringSession } = healthData;
+    
+    // Create print window
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups for printing');
+      return;
+    }
+    
+    // Generate print HTML
+    const printHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Health Report - ${driver.name}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          h1 {
+            text-align: center;
+            color: #333;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+          }
+          h2 {
+            color: #555;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 20px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+          }
+          th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+          }
+          tr:nth-child(even) {
+            background-color: #f9f9f9;
+          }
+          .header-info {
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Driver Health Report</h1>
+        <div class="header-info">
+          <p>Generated: ${format(new Date(), 'MMMM dd, yyyy HH:mm')}</p>
+          <p>Report ID: RPT-${Date.now()}</p>
+        </div>
+        
+        <h2>Driver Information</h2>
+        <table>
+          <tr>
+            <td><strong>Name:</strong></td>
+            <td>${driver.name}</td>
+            <td><strong>ID:</strong></td>
+            <td>${driver.driverId}</td>
+          </tr>
+          <tr>
+            <td><strong>Age:</strong></td>
+            <td>${driver.age} years</td>
+            <td><strong>Gender:</strong></td>
+            <td>${driver.gender}</td>
+          </tr>
+          <tr>
+            <td><strong>Email:</strong></td>
+            <td>${driver.email || 'N/A'}</td>
+            <td><strong>Phone:</strong></td>
+            <td>${driver.phone}</td>
+          </tr>
+          <tr>
+            <td><strong>Weight:</strong></td>
+            <td>${driver.weight ? driver.weight + ' kg' : 'N/A'}</td>
+            <td><strong>Height:</strong></td>
+            <td>${driver.height ? driver.height + ' cm' : 'N/A'}</td>
+          </tr>
+        </table>
+        
+        <h2>Risk Assessment</h2>
+        <table>
+          <tr>
+            <td><strong>Overall Risk Level:</strong></td>
+            <td>${latestReport?.riskLevel || 'NORMAL'}</td>
+            <td><strong>Last Updated:</strong></td>
+            <td>${latestReport ? format(new Date(latestReport.reportDate), 'MMM dd, yyyy HH:mm') : 'Never'}</td>
+          </tr>
+        </table>
+        
+        ${latestReport ? `
+        <h2>Basic Health Metrics</h2>
+        <table>
+          ${latestReport.bloodPressureHigh && latestReport.bloodPressureLow ? `
+          <tr>
+            <td><strong>Blood Pressure:</strong></td>
+            <td>${latestReport.bloodPressureHigh}/${latestReport.bloodPressureLow} mmHg</td>
+            <td><strong>Status:</strong></td>
+            <td>${latestReport.bloodPressureHigh >= 140 || latestReport.bloodPressureLow >= 90 ? 'High' : 
+                 latestReport.bloodPressureHigh < 90 || latestReport.bloodPressureLow < 60 ? 'Low' : 'Normal'}</td>
+          </tr>` : ''}
+          ${latestReport.heartRate ? `
+          <tr>
+            <td><strong>Heart Rate:</strong></td>
+            <td>${latestReport.heartRate} BPM</td>
+            <td><strong>Status:</strong></td>
+            <td>${latestReport.heartRate < 60 ? 'Low' : latestReport.heartRate > 100 ? 'High' : 'Normal'}</td>
+          </tr>` : ''}
+          ${latestReport.stressLevel ? `
+          <tr>
+            <td><strong>Stress Level:</strong></td>
+            <td colspan="3">${latestReport.stressLevel.replace('_', ' ')}</td>
+          </tr>` : ''}
+        </table>` : ''}
+        
+        <h2>Comprehensive Health Vitals</h2>
+        <table>
+          <tr>
+            <td><strong>BMI:</strong></td>
+            <td>${healthVitals.bmi || 'N/A'}</td>
+            <td><strong>Heart Age:</strong></td>
+            <td>${healthVitals.heart_age || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>ASCVD Risk:</strong></td>
+            <td>${healthVitals.ascvd_risk || 'N/A'}</td>
+            <td><strong>Blood Pressure:</strong></td>
+            <td>${healthVitals.blood_pressure || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Heart Rate:</strong></td>
+            <td>${healthVitals.heart_rate || 'N/A'}</td>
+            <td><strong>Confidence:</strong></td>
+            <td>${healthVitals.heart_rate_conf_level || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Breathing Rate:</strong></td>
+            <td>${healthVitals.breathing_rate || 'N/A'}</td>
+            <td><strong>Confidence:</strong></td>
+            <td>${healthVitals.breathing_rate_conf_level || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>PRQ:</strong></td>
+            <td>${healthVitals.prq || 'N/A'}</td>
+            <td><strong>Confidence:</strong></td>
+            <td>${healthVitals.prq_conf_level || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Oxygen Saturation:</strong></td>
+            <td>${healthVitals.oxygen_saturation || 'N/A'}</td>
+            <td><strong>Stress Level:</strong></td>
+            <td>${healthVitals.stress_level || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Recovery Ability:</strong></td>
+            <td>${healthVitals.recovery_ability || 'N/A'}</td>
+            <td><strong>Stress Response:</strong></td>
+            <td>${healthVitals.stress_response || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>HRV SDNN:</strong></td>
+            <td>${healthVitals.hrv_sdnn || 'N/A'}</td>
+            <td><strong>Confidence:</strong></td>
+            <td>${healthVitals.hrv_sdnn_conf_level || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Hemoglobin:</strong></td>
+            <td>${healthVitals.hemoglobin || 'N/A'}</td>
+            <td><strong>HbA1c:</strong></td>
+            <td>${healthVitals.hba1c || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Respiration:</strong></td>
+            <td colspan="3">${healthVitals.respiration || 'N/A'}</td>
+          </tr>
+        </table>
+        
+        <h2>Health Risk Assessments</h2>
+        <table>
+          <tr>
+            <td><strong>Low Hemoglobin Risk:</strong></td>
+            <td>${healthVitals.low_hemoglobin_risk || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>High Cholesterol Risk:</strong></td>
+            <td>${healthVitals.high_total_cholesterol_risk || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>High Glucose Risk:</strong></td>
+            <td>${healthVitals.high_fasting_glucose_risk || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Hypertension Risk:</strong></td>
+            <td>${healthVitals.hypertension_risk || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td><strong>Diabetic Risk:</strong></td>
+            <td>${healthVitals.diabetic_risk || 'N/A'}</td>
+          </tr>
+        </table>
+        
+        <h2>Monitoring Detection Status</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Detection Type</th>
+              <th>Status</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Alcohol</td>
+              <td>${latestMonitoringSession.alcohol_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.alcohol_detected === 1 ? 'Immediate action required' : 'Clear'}</td>
+            </tr>
+            <tr>
+              <td>Smoking</td>
+              <td>${latestMonitoringSession.smoking_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.smoking_detected === 1 ? 'Warning issued' : 'Clear'}</td>
+            </tr>
+            <tr>
+              <td>Drowsiness</td>
+              <td>${latestMonitoringSession.drowsy_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.drowsy_detected === 1 ? 'Rest recommended' : 'Alert'}</td>
+            </tr>
+            <tr>
+              <td>Sleeping</td>
+              <td>${latestMonitoringSession.sleeping_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.sleeping_detected === 1 ? 'Critical alert' : 'Awake'}</td>
+            </tr>
+            <tr>
+              <td>Mobile Use</td>
+              <td>${latestMonitoringSession.mobile_use_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.mobile_use_detected === 1 ? 'Safety violation' : 'Compliant'}</td>
+            </tr>
+            <tr>
+              <td>Distraction</td>
+              <td>${latestMonitoringSession.distracted_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.distracted_detected === 1 ? 'Attention required' : 'Focused'}</td>
+            </tr>
+            <tr>
+              <td>Drinking</td>
+              <td>${latestMonitoringSession.drinking_detected === 1 ? 'DETECTED' : 'NOT DETECTED'}</td>
+              <td>${latestMonitoringSession.drinking_detected === 1 ? 'Hydration noted' : 'N/A'}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        ${latestReport?.notes ? `
+        <h2>Medical Notes</h2>
+        <p>${latestReport.notes}</p>` : ''}
+        
+        <div class="footer">
+          <p>This report is confidential and intended for authorized personnel only.</p>
+          <p>© ${new Date().getFullYear()} Driver Health Dashboard - NUAI Transport Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    // Write content and print
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+    
+    // Wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    };
   };
 
   const getRiskLevelColor = (level: string) => {
@@ -222,9 +529,9 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden z-50">
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden z-50">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 print:hidden">
             <div className="flex items-center space-x-3">

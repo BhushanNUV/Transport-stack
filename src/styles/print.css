@@ -1,0 +1,195 @@
+/* Print-specific styles for Health Report */
+@media print {
+  /* Hide all page content */
+  body > *:not(#print-container) {
+    display: none !important;
+  }
+  
+  /* Show only print container */
+  #print-container {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .print-content {
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: white;
+    color: black !important;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  /* Page setup */
+  @page {
+    margin: 0.75in;
+    size: letter;
+  }
+  
+  /* Remove browser headers/footers */
+  @page {
+    @top-center { content: none; }
+    @bottom-center { content: none; }
+  }
+
+  /* Header styles */
+  .print-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #000;
+  }
+
+  .print-header h1 {
+    font-size: 24pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #000;
+  }
+
+  .print-meta {
+    font-size: 10pt;
+    color: #333;
+  }
+
+  .print-meta p {
+    margin: 2px 0;
+  }
+
+  /* Section styles */
+  .print-section {
+    margin-bottom: 25px;
+    page-break-inside: avoid;
+  }
+
+  .print-section h2 {
+    font-size: 16pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #666;
+    color: #000;
+  }
+
+  /* Table styles */
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+  }
+
+  .print-table th {
+    background-color: #f0f0f0;
+    font-weight: bold;
+    text-align: left;
+    padding: 8px;
+    border: 1px solid #ccc;
+    font-size: 11pt;
+  }
+
+  .print-table td {
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    font-size: 11pt;
+  }
+
+  .print-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  /* List styles */
+  .print-list {
+    margin-left: 20px;
+    list-style-type: disc;
+  }
+
+  .print-list li {
+    margin-bottom: 5px;
+    font-size: 11pt;
+  }
+
+  /* Footer styles */
+  .print-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #666;
+    text-align: center;
+    font-size: 9pt;
+    color: #666;
+  }
+
+  .print-footer p {
+    margin: 3px 0;
+  }
+
+  /* Page break control */
+  .page-break {
+    page-break-after: always;
+  }
+
+  .no-page-break {
+    page-break-inside: avoid;
+  }
+
+  /* Hide non-print elements */
+  button,
+  .print\\:hidden,
+  [class*="hover:"],
+  .modal-overlay,
+  .modal-close,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Risk level colors in print */
+  .risk-normal { color: green !important; }
+  .risk-low { color: orange !important; }
+  .risk-medium { color: darkorange !important; }
+  .risk-high { color: red !important; }
+  .risk-critical { 
+    color: darkred !important; 
+    font-weight: bold;
+  }
+
+  /* Detection status in print */
+  .detection-clear { color: green !important; }
+  .detection-warning { color: orange !important; }
+  .detection-alert { color: red !important; }
+
+  /* Images in print */
+  img {
+    max-width: 100%;
+    height: auto;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure text is black for readability */
+  p, span, div, td, th {
+    color: black !important;
+  }
+
+  /* Strong text emphasis */
+  strong, b {
+    font-weight: bold !important;
+  }
+}
+
+/* Screen styles for print preview */
+@media screen {
+  .print-content {
+    display: none;
+  }
+}
+
+/* Print button hover state (screen only) */
+@media screen {
+  .print-button:hover {
+    background-color: #f3f4f6;
+  }
+}
