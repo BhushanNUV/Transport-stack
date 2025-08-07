@@ -66,6 +66,12 @@ export default function HealthReportsManagement() {
     averageRiskScore: 0,
     trendsUp: false,
   });
+  
+  // Today's stats
+  const [todayReports, setTodayReports] = useState(0);
+  const [todayCritical, setTodayCritical] = useState(0);
+  const [overallCritical, setOverallCritical] = useState(0);
+  const [overallTotal, setOverallTotal] = useState(0);
 
   // Sorting
   const [sortField, setSortField] = useState<string | null>(null);
@@ -73,7 +79,13 @@ export default function HealthReportsManagement() {
 
   useEffect(() => {
     fetchHealthReports();
+    fetchTodayStats(); // Fetch today's stats whenever page changes
   }, [currentPage, filters, itemsPerPage]);
+  
+  useEffect(() => {
+    // Fetch today's stats on initial load
+    fetchTodayStats();
+  }, []);
 
   // Debounced search effect
   useEffect(() => {
@@ -173,6 +185,29 @@ export default function HealthReportsManagement() {
   const handleItemsPerPageChange = (value: number) => {
     setItemsPerPage(value);
     setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
+  const fetchTodayStats = async () => {
+    try {
+      // Fetch today's stats from the API
+      const response = await fetch('/api/health-reports/today-stats');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setTodayReports(result.data.todayReports);
+          setTodayCritical(result.data.criticalCases);
+          setOverallCritical(result.data.criticalCasesOverall || 0);
+          setOverallTotal(result.data.overallTotalReports || 0);
+          // Update other stats if needed
+          setStats(prev => ({
+            ...prev,
+            criticalCases: result.data.criticalCasesOverall || 0,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching today stats:', err);
+    }
   };
 
   const fetchHealthReports = async () => {
@@ -320,7 +355,16 @@ export default function HealthReportsManagement() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Health Reports</h1>
             <p className="text-gray-600">Monitor driver health metrics based on monitoring session data</p>
-            <p className="text-sm text-blue-600 mt-1">Data from monitoring sessions with non-null driver IDs and health vitals</p>
+            <div className="flex items-center space-x-4 mt-2">
+              <span className="text-sm text-gray-500 flex items-center">
+                <Calendar className="h-4 w-4 mr-1" />
+                Today: {format(new Date(), 'MMMM dd, yyyy')}
+              </span>
+              <span className="text-sm font-medium text-blue-600 flex items-center">
+                <BarChart3 className="h-4 w-4 mr-1" />
+                Today's Total Reports: {todayReports}
+              </span>
+            </div>
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -340,10 +384,10 @@ export default function HealthReportsManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Reports</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalReports}</p>
+              <p className="text-2xl font-bold text-gray-900">{overallTotal || totalReports}</p>
               <div className="flex items-center mt-2 text-sm text-blue-600">
                 <BarChart3 className="h-4 w-4 mr-1" />
-                <span>This month</span>
+                <span>Today: {todayReports}</span>
               </div>
             </div>
             <Heart className="h-8 w-8 text-blue-600" />
@@ -354,10 +398,10 @@ export default function HealthReportsManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Critical Cases</p>
-              <p className="text-2xl font-bold text-red-600">{stats.criticalCases}</p>
+              <p className="text-2xl font-bold text-red-600">{overallCritical}</p>
               <div className="flex items-center mt-2 text-sm text-red-600">
                 <AlertTriangle className="h-4 w-4 mr-1" />
-                <span>Require attention</span>
+                <span>Today: {todayCritical}</span>
               </div>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-600" />
