@@ -21,8 +21,14 @@ class NotificationStorage {
   private initialized: boolean = false;
 
   constructor() {
-    // Store notifications in a JSON file in the project root
-    this.filePath = path.join(process.cwd(), 'notifications-data.json');
+    // Store notifications in a JSON file - use /tmp in production for write permissions
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dataDir = isProduction ? '/tmp' : process.cwd();
+    this.filePath = path.join(dataDir, 'notifications-data.json');
+    
+    console.log(`[NotificationStorage] Using file path: ${this.filePath}`);
+    console.log(`[NotificationStorage] Environment: ${process.env.NODE_ENV}`);
+    
     this.loadNotifications();
   }
 
@@ -36,23 +42,40 @@ class NotificationStorage {
           ...notification,
           timestamp: new Date(notification.timestamp),
         }));
+        console.log(`[NotificationStorage] Loaded ${this.notifications.length} notifications from file`);
       } else {
+        console.log('[NotificationStorage] No existing notifications file found, creating new one');
         this.notifications = [];
         this.saveNotifications();
       }
       this.initialized = true;
     } catch (error) {
-      console.error('Error loading notifications from file:', error);
+      console.error('[NotificationStorage] Error loading notifications from file:', error);
+      console.error('[NotificationStorage] File path:', this.filePath);
       this.notifications = [];
       this.initialized = true;
+      // Try to create the file anyway
+      try {
+        this.saveNotifications();
+      } catch (saveError) {
+        console.error('[NotificationStorage] Could not create notifications file:', saveError);
+      }
     }
   }
 
   private saveNotifications(): void {
     try {
+      // Ensure directory exists
+      const dir = path.dirname(this.filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
       fs.writeFileSync(this.filePath, JSON.stringify(this.notifications, null, 2));
+      console.log(`[NotificationStorage] Saved ${this.notifications.length} notifications to file`);
     } catch (error) {
-      console.error('Error saving notifications to file:', error);
+      console.error('[NotificationStorage] Error saving notifications to file:', error);
+      console.error('[NotificationStorage] File path:', this.filePath);
     }
   }
 

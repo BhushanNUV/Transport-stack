@@ -22,8 +22,14 @@ class AlertStorage {
   private initialized: boolean = false;
 
   constructor() {
-    // Store alerts in a JSON file in the project root
-    this.filePath = path.join(process.cwd(), 'alerts-data.json');
+    // Store alerts in a JSON file - use /tmp in production for write permissions
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dataDir = isProduction ? '/tmp' : process.cwd();
+    this.filePath = path.join(dataDir, 'alerts-data.json');
+    
+    console.log(`[AlertStorage] Using file path: ${this.filePath}`);
+    console.log(`[AlertStorage] Environment: ${process.env.NODE_ENV}`);
+    
     this.loadAlerts();
   }
 
@@ -38,23 +44,40 @@ class AlertStorage {
           createdAt: new Date(alert.createdAt),
           updatedAt: new Date(alert.updatedAt),
         }));
+        console.log(`[AlertStorage] Loaded ${this.alerts.length} alerts from file`);
       } else {
+        console.log('[AlertStorage] No existing alerts file found, creating new one');
         this.alerts = [];
         this.saveAlerts();
       }
       this.initialized = true;
     } catch (error) {
-      console.error('Error loading alerts from file:', error);
+      console.error('[AlertStorage] Error loading alerts from file:', error);
+      console.error('[AlertStorage] File path:', this.filePath);
       this.alerts = [];
       this.initialized = true;
+      // Try to create the file anyway
+      try {
+        this.saveAlerts();
+      } catch (saveError) {
+        console.error('[AlertStorage] Could not create alerts file:', saveError);
+      }
     }
   }
 
   private saveAlerts(): void {
     try {
+      // Ensure directory exists
+      const dir = path.dirname(this.filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
       fs.writeFileSync(this.filePath, JSON.stringify(this.alerts, null, 2));
+      console.log(`[AlertStorage] Saved ${this.alerts.length} alerts to file`);
     } catch (error) {
-      console.error('Error saving alerts to file:', error);
+      console.error('[AlertStorage] Error saving alerts to file:', error);
+      console.error('[AlertStorage] File path:', this.filePath);
     }
   }
 
