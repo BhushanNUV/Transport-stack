@@ -17,10 +17,12 @@ import {
   Clock,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  Maximize2
 } from 'lucide-react';
 import { HealthReportWithDetails, AlcoholDetection, ObjectDetection } from '@/types';
 import HealthReportPrint from './HealthReportPrint';
+import ImageLightbox from './ImageLightbox';
 import '@/styles/print.css';
 
 interface HealthReportModalProps {
@@ -43,6 +45,7 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string; description?: string } | null>(null);
 
   useEffect(() => {
     if (isOpen && driverId) {
@@ -528,7 +531,8 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
     : null;
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog.Root open={isOpen} onOpenChange={onClose}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
           <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden z-50">
@@ -864,12 +868,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.alcohol_detected === 1 && latestMonitoringSession.alcohol_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.alcohol_img_url,
+                            title: 'Alcohol Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.alcohol_img_url} 
                             alt="Alcohol detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -883,12 +897,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.smoking_detected === 1 && latestMonitoringSession.smoking_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.smoking_img_url,
+                            title: 'Smoking Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.smoking_img_url} 
                             alt="Smoking detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -902,12 +926,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.drowsy_detected === 1 && latestMonitoringSession.drowsy_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.drowsy_img_url,
+                            title: 'Drowsiness Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.drowsy_img_url} 
                             alt="Drowsiness detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -921,12 +955,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.sleeping_detected === 1 && latestMonitoringSession.sleeping_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.sleeping_img_url,
+                            title: 'Sleeping Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.sleeping_img_url} 
                             alt="Sleeping detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -940,12 +984,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.mobile_use_detected === 1 && latestMonitoringSession.mobile_use_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.mobile_use_img_url,
+                            title: 'Mobile Use Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.mobile_use_img_url} 
                             alt="Mobile use detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -959,12 +1013,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.distracted_detected === 1 && latestMonitoringSession.distracted_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.distracted_img_url,
+                            title: 'Distraction Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.distracted_img_url} 
                             alt="Distraction detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -978,12 +1042,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                         </span>
                       </div>
                       {latestMonitoringSession.drinking_detected === 1 && latestMonitoringSession.drinking_img_url && (
-                        <div className="mt-2">
+                        <div 
+                          className="mt-2 relative group cursor-pointer"
+                          onClick={() => setLightboxImage({
+                            url: latestMonitoringSession.drinking_img_url,
+                            title: 'Drinking Detection',
+                            description: `Detected at ${format(new Date(), 'MMM dd, yyyy HH:mm')}`
+                          })}
+                        >
                           <img 
                             src={latestMonitoringSession.drinking_img_url} 
                             alt="Drinking detection"
-                            className="w-full h-24 object-cover rounded border"
+                            className="w-full h-24 object-cover rounded border group-hover:opacity-90 transition-opacity"
                           />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                            <Maximize2 className="h-6 w-6 text-white" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1025,12 +1099,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                             <p className="text-sm text-slate-500">Location: {detection.location}</p>
                           )}
                           {detection.imageUrl && (
-                            <div className="mt-2">
+                            <div 
+                              className="mt-2 relative group cursor-pointer"
+                              onClick={() => setLightboxImage({
+                                url: detection.imageUrl,
+                                title: 'Alcohol Detection',
+                                description: `${detection.severity} Risk - Confidence: ${(detection.confidence * 100).toFixed(1)}%`
+                              })}
+                            >
                               <img 
                                 src={detection.imageUrl} 
                                 alt="Alcohol detection"
-                                className="w-full h-32 object-cover rounded border"
+                                className="w-full h-32 object-cover rounded border group-hover:opacity-90 transition-opacity"
                               />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                <Maximize2 className="h-6 w-6 text-white" />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1073,12 +1157,22 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
                             <p className="text-sm text-slate-500">Location: {detection.location}</p>
                           )}
                           {detection.imageUrl && (
-                            <div className="mt-2">
+                            <div 
+                              className="mt-2 relative group cursor-pointer"
+                              onClick={() => setLightboxImage({
+                                url: detection.imageUrl,
+                                title: `${detection.objectType} Detection`,
+                                description: `${detection.severity || 'Unknown'} Severity - Confidence: ${(detection.confidence * 100).toFixed(1)}%`
+                              })}
+                            >
                               <img 
                                 src={detection.imageUrl} 
                                 alt={`${detection.objectType} detection`}
-                                className="w-full h-32 object-cover rounded border"
+                                className="w-full h-32 object-cover rounded border group-hover:opacity-90 transition-opacity"
                               />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded">
+                                <Maximize2 className="h-6 w-6 text-white" />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1117,5 +1211,17 @@ export default function HealthReportModal({ isOpen, onClose, driverId }: HealthR
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+
+    {/* Image Lightbox */}
+    {lightboxImage && (
+      <ImageLightbox
+        isOpen={!!lightboxImage}
+        onClose={() => setLightboxImage(null)}
+        imageUrl={lightboxImage.url}
+        title={lightboxImage.title}
+        description={lightboxImage.description}
+      />
+    )}
+    </>
   );
 }
