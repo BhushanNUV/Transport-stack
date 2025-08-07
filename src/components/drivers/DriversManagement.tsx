@@ -27,6 +27,7 @@ import { DriverWithRelations, CreateDriverData, DriversFilter, Gender, RiskLevel
 import HealthReportModal from '@/components/modals/HealthReportModal';
 import SuccessModal from '@/components/modals/SuccessModal';
 import CameraModal from '@/components/modals/CameraModal';
+import ConfirmationModal from '@/components/modals/ConfirmationModal';
 import { exportToExcel, ExcelColumn } from '@/utils/excelExport';
 import Pagination from '@/components/common/Pagination';
 import ItemsPerPageSelector from '@/components/common/ItemsPerPageSelector';
@@ -42,6 +43,9 @@ export default function DriversManagement() {
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [driverToDelete, setDriverToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [editingDriver, setEditingDriver] = useState<DriverWithRelations | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [successMessage, setSuccessMessage] = useState({ title: '', message: '' });
@@ -326,11 +330,17 @@ export default function DriversManagement() {
     }
   };
 
-  const handleDelete = async (driverId: string) => {
-    if (!confirm('Are you sure you want to delete this driver?')) return;
+  const handleDeleteClick = (driver: DriverWithRelations) => {
+    setDriverToDelete({ id: driver.id, name: driver.name });
+    setShowDeleteModal(true);
+  };
 
+  const handleDelete = async () => {
+    if (!driverToDelete) return;
+    
+    setDeleting(true);
     try {
-      const response = await fetch(`/api/drivers/${driverId}`, {
+      const response = await fetch(`/api/drivers/${driverToDelete.id}`, {
         method: 'DELETE',
       });
 
@@ -340,8 +350,21 @@ export default function DriversManagement() {
 
       await fetchDrivers();
       await fetchGenderStats(); // Refresh gender statistics after deletion
+      
+      // Show success message
+      setSuccessMessage({
+        title: 'Driver Deleted',
+        message: `${driverToDelete.name} has been successfully removed from the system.`
+      });
+      setShowSuccessModal(true);
+      
+      // Close delete modal
+      setShowDeleteModal(false);
+      setDriverToDelete(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -817,7 +840,7 @@ export default function DriversManagement() {
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(driver.id)}
+                            onClick={() => handleDeleteClick(driver)}
                             className="p-2 text-red-600 hover:bg-red-100 rounded-md"
                             title="Delete Driver"
                           >
@@ -908,7 +931,7 @@ export default function DriversManagement() {
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(driver.id)}
+                    onClick={() => handleDeleteClick(driver)}
                     className="p-1.5 text-red-600 hover:bg-red-100 rounded-md"
                     title="Delete Driver"
                   >
@@ -1234,6 +1257,22 @@ export default function DriversManagement() {
         onClose={() => setShowSuccessModal(false)}
         title={successMessage.title}
         message={successMessage.message}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setDriverToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Delete Driver"
+        message={`Are you sure you want to delete ${driverToDelete?.name}? This action cannot be undone and will remove all associated health records and monitoring data.`}
+        confirmText="Delete Driver"
+        cancelText="Cancel"
+        type="danger"
+        loading={deleting}
       />
     </div>
   );

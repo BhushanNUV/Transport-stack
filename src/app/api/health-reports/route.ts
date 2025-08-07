@@ -198,6 +198,14 @@ export async function POST(request: NextRequest) {
       stressLevel,
       riskLevel,
       notes,
+      // New health vitals fields
+      heart_rate,
+      breathing_rate,
+      oxygen_saturation,
+      hrv_sdnn,
+      mean_rri,
+      parasympathetic_ns,
+      sns_index,
     } = body;
 
     // Validate required fields
@@ -244,7 +252,7 @@ export async function POST(request: NextRequest) {
       finalRiskLevel = 'NORMAL';
     }
 
-    // Create health report
+    // Create health report with all health vitals
     const healthReport = await prisma.healthReport.create({
       data: {
         driverId,
@@ -254,6 +262,14 @@ export async function POST(request: NextRequest) {
         stressLevel: stressLevel || null,
         riskLevel: finalRiskLevel,
         notes: notes || null,
+        // Store new health vitals
+        heart_rate: heart_rate?.toString() || null,
+        breathing_rate: breathing_rate?.toString() || null,
+        oxygen_saturation: oxygen_saturation?.toString() || null,
+        hrv_sdnn: hrv_sdnn?.toString() || null,
+        mean_rri: mean_rri?.toString() || null,
+        parasympathetic_ns: parasympathetic_ns?.toString() || null,
+        sns_index: sns_index?.toString() || null,
       },
       include: {
         driver: {
@@ -280,17 +296,25 @@ export async function POST(request: NextRequest) {
 
     // Check health metrics and create alerts if needed
     if (driver.organizationId) {
+      // Use new health vitals if available, otherwise fall back to old fields
+      const metricsToCheck = {
+        heartRate: heart_rate ? parseFloat(heart_rate) : (heartRate || undefined),
+        breathingRate: breathing_rate ? parseFloat(breathing_rate) : undefined,
+        oxygenSaturation: oxygen_saturation ? parseFloat(oxygen_saturation) : undefined,
+        hrvSDNN: hrv_sdnn ? parseFloat(hrv_sdnn) : undefined,
+        meanRRI: mean_rri ? parseFloat(mean_rri) : undefined,
+        parasympathetic: parasympathetic_ns ? parseFloat(parasympathetic_ns) : undefined,
+        snsIndex: sns_index ? parseFloat(sns_index) : 
+                 (stressLevel === 'VERY_HIGH' ? 8 : 
+                  stressLevel === 'HIGH' ? 6 : 
+                  stressLevel === 'MILD' ? 4 : 
+                  stressLevel === 'LOW' ? 2 : undefined),
+      };
+
       await checkAndCreateAlerts(
         driverId,
         driver.name,
-        {
-          heartRate: heartRate || undefined,
-          // Map stress level to SNS index (simplified mapping)
-          snsIndex: stressLevel === 'VERY_HIGH' ? 8 : 
-                   stressLevel === 'HIGH' ? 6 : 
-                   stressLevel === 'MILD' ? 4 : 
-                   stressLevel === 'LOW' ? 2 : 1,
-        },
+        metricsToCheck,
         driver.organizationId
       );
     }
